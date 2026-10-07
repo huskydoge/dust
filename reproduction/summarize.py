@@ -76,7 +76,7 @@ print("### Seeds at 10M tokens\n")
 rows = [["Backprop, AdamW"] + [show(v) for v in backprop("adamw", "10m")] + [show(mean(backprop("adamw", "10m")))]]
 seeds = [test(f"dust-adam-10m-p4096-s{seed}") for seed in (42, 43, 44)]
 rows.append(["Dust, Adam, population 4k"] + [show(v) for v in seeds] + [show(mean(seeds))])
-table(["Method", "Seed 42", "Seed 43", "Seed 44", "Mean of finished"], rows)
+table(["Method", "Seed 42", "Seed 43", "Seed 44", "Mean"], rows)
 
 print("### Dust under Adam at 10M tokens, tuning at population 1k\n")
 SWEEP = [("dust-adam-10m-p1024-s42", "Appendix settings (learning rate 0.0015, β1 0.7)"),

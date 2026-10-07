@@ -16,7 +16,8 @@ built on the official release at commit `2fdb01b`. It is not affiliated with the
    better at 10M tokens, and no Dust run with SGD comes near it.
 3. **Dust under Adam does not keep up at 10M tokens.** At 1M tokens (61 steps) it is within 0.02 of backprop with AdamW
    at a population of 16,384. At 10M tokens it tracks backprop for about a hundred steps and then falls steadily behind,
-   ending 0.5 nat above it. Changing the learning rate or β1 recovers at most 0.02.
+   ending 0.5 nat above it. Changing the learning rate or β1 recovers at most 0.02, and three seeds of one cell agree
+   to within 0.01.
 4. **Dust still improves a backprop-trained checkpoint, but less than backprop does.** Continued from an AdamW
    checkpoint it lowers the loss only at a learning rate below the one tuned for training from scratch, and reaches 73%
    to 85% of backprop's improvement over the same 200 steps at a population of 16,384.
