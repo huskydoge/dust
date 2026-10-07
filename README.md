@@ -1,5 +1,9 @@
 # DUST
 
+> **Fork note.** This fork adds an AdamW backprop baseline, Dust under Adam and continuation from backprop
+> checkpoints, with a [reproduction report](https://huskydoge.github.io/dust/): see [`reproduction/`](reproduction/README.md).
+> The official files are unchanged.
+
 This is a minimal implementation of our research: <https://qlabs.sh/research/dust>
 
 Train a transformer using forward evaluations and SGD, without backpropagation.

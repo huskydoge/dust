@@ -1,0 +1,22 @@
+{
+  "method": "backprop-adamw",
+  "model": {
+    "sequence_len": 2048,
+    "vocab_size": 4096,
+    "n_layer": 8,
+    "n_head": 8,
+    "n_kv_head": 8,
+    "n_embd": 512,
+    "window_pattern": "SSSL"
+  },
+  "steps": 610,
+  "tokens": "10M",
+  "data_dir": "data",
+  "output": "runs/bp-adamw-10m-lr0.002-s42",
+  "seed": 42,
+  "lr": 0.002,
+  "embedding_lr": 0.3,
+  "scalar_lr": 0.2,
+  "beta1": 0.8,
+  "weight_decay": 0.0
+}

@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="An independent reproduction of Dust (pretraining transformers without backpropagation) with an AdamW baseline and continuation from backprop checkpoints.">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Dust Reproduction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Noto+Sans+SC:wght@400;500&family=Noto+Serif+SC:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #f4f4f8;
+  --surface: #ffffff;
+  --ink: #1b1a24;
+  --muted: #5b596e;
+  --faint: #8b899d;
+  --rule: #dcdbe6;
+  --hover: #ecebf4;
+  --accent: #483e8c;
+  --bp-sgd: #6e6e7c;
+  --bp-adam: #1b1a24;
+  --s1: #f0b79a;
+  --s2: #e08a5f;
+  --s3: #c4622f;
+  --s4: #8a3d14;
+  --a1: #9ec5f4;
+  --a2: #5b9be6;
+  --a3: #1b76d2;
+  --a4: #0d3c75;
+  --serif: "Source Serif 4", "Noto Serif SC", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: "IBM Plex Sans", "Noto Sans SC", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111117;
+    --surface: #1a1a23;
+    --ink: #e8e7f0;
+    --muted: #a6a4ba;
+    --faint: #7c7a90;
+    --rule: #2e2d3b;
+    --hover: #26253a;
+    --accent: #aaa0f2;
+    --bp-sgd: #a6a6b4;
+    --bp-adam: #f2f1fa;
+    --s1: #7a4526;
+    --s2: #b5683c;
+    --s3: #e39263;
+    --s4: #f7c4a3;
+    --a1: #2f5f93;
+    --a2: #4a86cf;
+    --a3: #74b2f5;
+    --a4: #b9dafc;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111117;
+  --surface: #1a1a23;
+  --ink: #e8e7f0;
+  --muted: #a6a4ba;
+  --faint: #7c7a90;
+  --rule: #2e2d3b;
+  --hover: #26253a;
+  --accent: #aaa0f2;
+  --bp-sgd: #a6a6b4;
+  --bp-adam: #f2f1fa;
+  --s1: #7a4526;
+  --s2: #b5683c;
+  --s3: #e39263;
+  --s4: #f7c4a3;
+  --a1: #2f5f93;
+  --a2: #4a86cf;
+  --a3: #74b2f5;
+  --a4: #b9dafc;
+}
+* { box-sizing: border-box; }
+/* Bilingual page: every passage exists in both languages and only the chosen one is shown. */
+:root:not([data-lang="zh"]) .zh { display: none !important; }
+:root[data-lang="zh"] .en { display: none !important; }
+:root[data-lang="zh"] body { line-height: 1.78; }
+.lang-switch { display: inline-flex; flex: none; border: 1px solid var(--rule); border-radius: 5px; overflow: hidden; font-family: var(--sans); font-size: 12.5px; }
+.lang-switch button { font: inherit; color: var(--muted); background: var(--surface); border: 0; padding: 3px 10px; cursor: pointer; }
+.lang-switch button + button { border-left: 1px solid var(--rule); }
+.lang-switch button[aria-pressed="true"] { color: var(--accent); background: var(--hover); font-weight: 500; }
+.topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+nav.toc-float .lang-switch { margin: 0 0 16px 2px; }
+@media (min-width: 1280px) { header .lang-switch { display: none; } }
+.toc-bar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--serif); font-size: 17px; line-height: 1.62;
+  padding-inline: 20px; -webkit-font-smoothing: antialiased;
+}
+main { max-width: 1120px; margin-inline: auto; padding-block: 44px 96px; }
+.col { max-width: 700px; margin-inline: auto; }
+.mid { max-width: 940px; margin-inline: auto; }
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; text-wrap: balance; }
+h1 { font-size: clamp(34px, 6vw, 48px); line-height: 1.08; margin: 10px 0 18px; letter-spacing: -0.01em; }
+h2 { font-size: 27px; line-height: 1.2; margin: 64px 0 14px; scroll-margin-top: 20px; }
+h3 { font-size: 19px; margin: 30px 0 6px; }
+p { margin: 0 0 14px; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a.xref { text-decoration: none; white-space: nowrap; }
+a.xref:hover { text-decoration: underline; }
+a:focus-visible, summary:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font-family: var(--mono); font-size: 0.86em; overflow-wrap: anywhere; }
+.eyebrow, .label { font-family: var(--sans); font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.label { margin-bottom: 6px; }
+.tldr { margin: 22px 0 0; padding-block: 16px 6px; border-block: 1px solid var(--rule); }
+.tldr ul { margin: 0; padding-left: 20px; }
+.tldr li { margin-bottom: 8px; }
+.howto { margin: 16px 0 0; }
+.tldr.scope { margin-top: 0; border-top: 0; }
+.tldr.scope p { font-size: 15.5px; margin-bottom: 10px; }
+.eq { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 28px; margin: 12px 0 16px; max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.eq span { white-space: nowrap; }
+mjx-container { color: inherit; }
+.questions { display: grid; gap: 12px; margin: 10px 0 18px; }
+.q { display: grid; grid-template-columns: 42px 1fr; gap: 10px; }
+.q b { font-family: var(--sans); font-weight: 600; color: var(--accent); font-size: 15px; padding-top: 2px; }
+.q .a { display: block; color: var(--muted); margin-top: 2px; }
+ul.findings { padding-left: 20px; margin: 6px 0 0; }
+ul.findings li { margin-bottom: 8px; }
+dl.defs { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 14px 0 0; }
+dl.defs dt { font-family: var(--sans); font-weight: 500; font-size: 15px; padding-top: 2px; }
+dl.defs dd { margin: 0; }
+
+nav.toc-float {
+  position: fixed; top: calc(24px + env(safe-area-inset-top, 0px)); left: max(16px, calc((100vw - 1120px) / 2 - 232px));
+  width: 208px; max-height: calc(100vh - 48px); overflow-y: auto; font-family: var(--sans); font-size: 13.5px;
+  line-height: 1.35; z-index: 10;
+}
+nav.toc-float .label { margin-bottom: 10px; }
+nav.toc-float ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+nav.toc-float a { display: block; padding: 4px 8px; border-left: 2px solid var(--rule); color: var(--muted); text-decoration: none; }
+nav.toc-float a:hover { color: var(--ink); background: var(--hover); }
+nav.toc-float a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+.toc-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 10; padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px;
+  background: var(--surface); border-bottom: 1px solid var(--rule); font-family: var(--sans); font-size: 13.5px;
+}
+.toc-bar button { display: flex; align-items: center; gap: 8px; max-width: 100%; font: inherit; color: var(--ink); background: none; border: 0; padding: 4px 0; cursor: pointer; text-align: left; }
+.toc-bar button .toc-bar-label { color: var(--muted); }
+.toc-bar button .toc-bar-current { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.toc-bar nav { max-height: 60vh; overflow-y: auto; padding: 6px 0 4px; }
+.toc-bar nav ol { list-style: none; margin: 0; padding: 0; }
+.toc-bar nav a { display: block; padding: 6px 4px; color: var(--ink); text-decoration: none; }
+.toc-bar nav a.active { color: var(--accent); font-weight: 500; }
+nav.toc-float[hidden], .toc-bar[hidden], .toc-bar nav[hidden] { display: none; }
+@media (max-width: 1279px) { nav.toc-float { display: none; } }
+@media (min-width: 1280px) {
+  .toc-bar { display: none; }
+  main { margin-left: max(228px, calc((100% - 1120px) / 2)); margin-right: auto; }
+}
+
+.fig { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 18px 18px 14px; margin: 26px auto; scroll-margin-top: 56px; }
+.fig > figcaption { font-family: var(--sans); font-size: 13.5px; line-height: 1.5; color: var(--muted); margin-top: 10px; }
+.fignum { font-weight: 600; color: var(--ink); }
+figure.tbl { margin: 26px 0; scroll-margin-top: 56px; }
+figure.tbl > figcaption { font-family: var(--sans); font-size: 13.5px; line-height: 1.5; color: var(--muted); margin-bottom: 6px; }
+.fig-tools { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 6px 14px; margin-bottom: 8px; }
+.keys { display: flex; flex-wrap: wrap; gap: 2px 6px; font-family: var(--sans); font-size: 13px; color: var(--ink); min-height: 26px; }
+button.key {
+  display: inline-flex; align-items: center; gap: 7px; font: inherit; color: var(--ink); background: none;
+  border: 1px solid transparent; border-radius: 4px; padding: 2px 7px 2px 5px; cursor: pointer; transition: opacity 0.12s;
+}
+button.key:hover { background: var(--hover); }
+.keys:not([data-mode="mute"]) button.key[aria-pressed="true"] { border-color: var(--rule); background: var(--hover); font-weight: 500; }
+.keys.tall { min-height: 56px; align-content: flex-start; }
+.keys.has-active button.key:not(.is-active) { opacity: 0.4; }
+button.key.muted { opacity: 0.4; text-decoration: line-through; }
+button.key svg { flex: none; overflow: visible; }
+.legend-info {
+  position: absolute; z-index: 20; max-width: min(360px, calc(100vw - 32px)); padding: 10px 12px;
+  font-family: var(--sans); font-size: 13px; line-height: 1.5; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--rule); border-radius: 6px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12); pointer-events: none;
+}
+.legend-info b { display: block; font-weight: 600; margin-bottom: 4px; }
+.legend-info dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 10px; margin: 0; }
+.legend-info dt { color: var(--muted); }
+.legend-info dd { margin: 0; }
+button.reset, button.toggle {
+  font-family: var(--sans); font-size: 12.5px; color: var(--accent); background: var(--surface);
+  border: 1px solid var(--rule); border-radius: 4px; padding: 3px 10px; cursor: pointer;
+}
+button.reset:hover, button.toggle:hover { border-color: var(--accent); }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 22px; }
+.panel-title { font-family: var(--sans); font-size: 13.5px; font-weight: 500; margin-bottom: 4px; }
+.chart { position: relative; height: 250px; }
+.chart canvas { cursor: crosshair; }
+.table-wrap { overflow-x: auto; margin: 0; }
+table { border-collapse: collapse; font-family: var(--sans); font-size: 14px; font-variant-numeric: tabular-nums; width: 100%; }
+th { text-align: left; font-weight: 500; color: var(--muted); border-bottom: 1px solid var(--ink); border-top: 1px solid var(--ink); padding: 6px 10px; vertical-align: bottom; }
+th.num { white-space: normal; min-width: 64px; }
+td { padding: 5px 10px; vertical-align: top; }
+tbody tr:last-child td { border-bottom: 1px solid var(--ink); }
+th.num, td.num { text-align: right; }
+td.num { white-space: nowrap; }
+td:first-child { white-space: nowrap; }
+tr.group td { padding-top: 12px; font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--rule); }
+table.stages td { vertical-align: top; }
+table.stages td:first-child { white-space: nowrap; font-weight: 500; }
+.note { font-family: var(--sans); font-size: 13.5px; color: var(--muted); }
+details { margin: 18px 0; }
+details > p { margin-top: 12px; font-size: 16px; }
+details[open] { padding-bottom: 6px; border-bottom: 1px solid var(--rule); }
+summary { cursor: pointer; font-family: var(--sans); font-size: 15px; font-weight: 500; }
+ol.refs { padding-left: 20px; font-size: 15.5px; }
+ol.refs li { margin-bottom: 6px; }
+footer { margin-top: 72px; padding-top: 16px; border-top: 1px solid var(--rule); font-family: var(--sans); font-size: 13px; color: var(--muted); }
+@media (max-width: 760px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) {
+  body { font-size: 16px; padding-inline: 16px; }
+  .fig { padding: 12px 10px 10px; }
+  dl.defs { grid-template-columns: 1fr; gap: 2px; }
+  dl.defs dd { margin-bottom: 8px; }
+  .chart { height: 220px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } button.key { transition: none; } }
+</style>
+
+<script>
+// Language before first paint: ?lang=zh or ?lang=en, else the reader's last choice, else English.
+(function () {
+  let lang = "en";
+  try {
+    const asked = new URLSearchParams(location.search).get("lang");
+    lang = asked === "zh" || asked === "en" ? asked : localStorage.getItem("dust-report-lang") || "en";
+  } catch (e) { /* storage or URL unavailable: English */ }
+  document.documentElement.dataset.lang = lang === "zh" ? "zh" : "en";
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+})();
+</script>
+</head>
+<body>
+<nav class="toc-float" id="toc-float" aria-label="Contents (follows the page)" hidden><div class="lang-switch" role="group" aria-label="Language"><button type="button" data-set-lang="en">English</button><button type="button" data-set-lang="zh" lang="zh-CN">中文</button></div></nav>
+<div class="toc-bar" id="toc-bar" hidden><div class="toc-bar-row"><button type="button" id="toc-bar-toggle" aria-expanded="false" aria-controls="toc-bar-nav"><span class="toc-bar-label"><span class="en">Contents ▾</span><span class="zh" lang="zh-CN">目录 ▾</span></span><span class="toc-bar-current" id="toc-bar-current"></span></button><div class="lang-switch" role="group" aria-label="Language"><button type="button" data-set-lang="en">EN</button><button type="button" data-set-lang="zh" lang="zh-CN">中文</button></div></div><nav id="toc-bar-nav" aria-label="Contents" hidden></nav></div>
+<main>
+<header class="col">
+  <div class="topline"><div class="eyebrow"><span class="en">Independent reproduction &middot; built October 6, 2026</span><span class="zh" lang="zh-CN">独立复现 &middot; 生成于 2026 年 10 月 6 日</span></div><div class="lang-switch" role="group" aria-label="Language"><button type="button" data-set-lang="en">English</button><button type="button" data-set-lang="zh" lang="zh-CN">中文</button></div></div>
+  <h1><span class="en">Dust Reproduction</span><span class="zh" lang="zh-CN">Dust 复现</span></h1>
+  <p><span class="en">Dust (Dahal et al., 2026) trains a transformer language model without a backward pass. It adds noise to activations at every token and turns the loss changes that follow into a gradient estimate. The paper reports that this matches backpropagation (backprop) at pretraining. We ran the official release, added the AdamW baseline it lacks, and tested Dust on models that backprop had already trained.</span><span class="zh" lang="zh-CN">Dust（Dahal 等，2026）不做反向传播就能训练 transformer 语言模型：它在每个 token 的激活上加噪声，再把随之产生的 loss 变化转成梯度估计。论文称它在预训练上与反向传播（backpropagation，下称 backprop）相当。我们跑了官方 release，补上了它缺少的 AdamW baseline，并在 backprop 已经训练过的模型上测试了 Dust。</span></p>
+  <section class="tldr" aria-label="Summary">
+    <div class="label"><span class="en">Summary</span><span class="zh" lang="zh-CN">要点</span></div>
+    <ul>
+      <li><span class="en">The release reproduces the paper. Its Dust runs with stochastic gradient descent (SGD) and our reconstruction of Dust under Adam all land within 0.05 of the published test losses (<a class="xref" href="#tab-repro">Table 1</a>).</span><span class="zh" lang="zh-CN">官方 release 能复现论文。它用随机梯度下降（stochastic gradient descent，SGD）的 Dust 运行，以及我们重建的 Adam 版 Dust，test loss 与论文数值的差都在 0.05 以内（<a class="xref" href="#tab-repro">表 1</a>）。</span></li>
+      <li><span class="en">The paper's main comparison trains backprop with SGD at a constant learning rate. With AdamW, backprop is about 1.0 nat better at 10M tokens, and no Dust run with SGD comes near it (<a class="xref" href="#tab-adamw">Table 2</a>).</span><span class="zh" lang="zh-CN">论文的主要对比里，backprop 用的是恒定学习率的 SGD。换成 AdamW 后，backprop 在 10M token 上好了约 1.0 nat，用 SGD 的 Dust 没有一格能接近它（<a class="xref" href="#tab-adamw">表 2</a>）。</span></li>
+      <li><span class="en">Dust under Adam, which the paper reports only at 1M tokens, is level with backprop AdamW there at the largest population. At 10M tokens it tracks backprop for the first hundred steps and then falls steadily behind, ending about 0.5 nat above it at a population of 16,384 (<a class="xref" href="#fig-curves">Figure 2</a>). Changing the learning rate or \(\beta_1\) does not close the gap (<a class="xref" href="#tab-tuning">Table 4</a>).</span><span class="zh" lang="zh-CN">论文只在 1M token 上报告了 Adam 版 Dust；在那里最大 population 的 Dust 与 backprop AdamW 持平。到 10M token，它在前一百步跟得上 backprop，之后持续落后，population 为 16,384 时最终高出约 0.5 nat（<a class="xref" href="#fig-curves">图 2</a>）。调学习率或 \(\beta_1\) 补不上这个差距（<a class="xref" href="#tab-tuning">表 4</a>）。</span></li>
+      <li><span class="en">Started from a model that backprop has already trained, Dust still lowers the loss, but only at a learning rate below the one tuned for training from scratch. At a population of 16,384 it reaches 73% and 85% of backprop's improvement from our two checkpoints (<a class="xref" href="#tab-cpt">Table 6</a>). Nothing suggests that it finds directions backprop misses.</span><span class="zh" lang="zh-CN">从 backprop 已经训练好的模型出发，Dust 仍能继续降低 loss，但前提是学习率低于从头训练时调出的值。population 为 16,384 时，它在我们的两个 checkpoint 上分别达到 backprop 同期降幅的 73% 和 85%（<a class="xref" href="#tab-cpt">表 6</a>）。没有迹象表明它能找到 backprop 找不到的方向。</span></li>
+      <li><span class="en">The cost is large. At 1M tokens the run with a population of 16,384 used roughly 600 times the graphics processing unit (GPU) time of backprop (<a class="xref" href="#tab-cost">Table 7</a>).</span><span class="zh" lang="zh-CN">代价很大。1M token 上 population 为 16,384 的运行，所用的图形处理器（graphics processing unit，GPU）时间约为 backprop 的 600 倍（<a class="xref" href="#tab-cost">表 7</a>）。</span></li>
+      <li><span class="en">What this reproduction does not cover, including populations above 16,384, is stated in the scope note below and in the limits at the end.</span><span class="zh" lang="zh-CN">本次复现没有覆盖的内容（包括 16,384 以上的 population）见下面的范围说明和文末的局限。</span></li>
+    </ul>
+  </section>
+  <section class="tldr scope" aria-label="Scope and disclaimer">
+    <div class="label"><span class="en">Scope and disclaimer</span><span class="zh" lang="zh-CN">范围与免责说明</span></div>
+    <p><span class="en">This is an independent reproduction, not affiliated with the paper's authors. It covers one model size (37.7M parameters), training from scratch on up to 10M tokens, populations up to 16,384 and, unless a table says otherwise, one seed per Dust run. Dust under Adam is our reconstruction from the paper's appendix. The report was drafted with Claude Opus 5.5 from the run records; any errors are ours.</span><span class="zh" lang="zh-CN">这是一次独立复现，与论文作者无关。它只覆盖一个模型尺寸（37.7M 参数）、最多 10M token 的从头训练、最大 16,384 的 population；除非表中另有说明，每个 Dust 运行只有一个 seed。Adam 版 Dust 是我们根据论文附录重建的。本报告由 Claude Opus 5.5 根据运行记录起草，如有错误由我们负责。</span></p>
+    <p><span class="en"><b>We did not test whether a larger population closes the gap to AdamW.</b> At 10M tokens, quadrupling the population from 4,096 to 16,384 narrows the gap to backprop with AdamW from 0.62 to 0.50 nat, at four times the compute (<a class="xref" href="#tab-adamw">Table 2</a>). If every further quadrupling helped as much as that one, closing the gap would take about 4 more, a population in the millions. That is an extrapolation from two points with one seed each, and the earlier quadruplings helped more, so read it as the order of magnitude and no more.</span><span class="zh" lang="zh-CN"><b>我们没有检验更大的 population 能否补上与 AdamW 的差距。</b>在 10M token 上，population 从 4,096 增到 16,384（四倍），与 backprop AdamW 的差距从 0.62 nat 缩小到 0.50 nat，算力是四倍（<a class="xref" href="#tab-adamw">表 2</a>）。如果之后每次四倍都能带来同样的改善，补上差距还需要约 4 次四倍，即百万量级的 population。这是只用两个点、各一个 seed 做的外推，而且更早的几次四倍改善更大，所以只能当作量级参考。</span></p>
+  </section>
+  <p class="note howto"><span class="en">The charts are interactive: drag across a chart to zoom in, hold Shift and drag to pan, and double-click to reset. Hover over a curve or a legend entry to highlight that run; a legend entry also shows how the run was set up. Click legend entries to keep one or more runs highlighted.</span><span class="zh" lang="zh-CN">图表可交互：在图上拖动可放大，按住 Shift 拖动可平移，双击复位。把鼠标悬停在曲线或图例项上可高亮该运行；图例项还会显示运行的设置。点击图例项可固定高亮一个或多个运行。</span></p>
+</header>
+
+<section class="col">
+  <h2 id="setup"><span class="en">What was run</span><span class="zh" lang="zh-CN">跑了什么</span></h2>
+  <p><span class="en">For a linear layer with output \(y_t\) at token \(t\), Dust adds noise \(\sigma a_t\) with \(a_t \sim \mathcal{N}(0, I)\), reruns the forward pass, and rewards each token's noise with the loss reduction \(r_t\) it caused. Averaged over \(K\) independent draws,</span><span class="zh" lang="zh-CN">对一个在 token \(t\) 处输出 \(y_t\) 的线性层，Dust 加上噪声 \(\sigma a_t\)（\(a_t \sim \mathcal{N}(0, I)\)），重跑前向，并用该噪声带来的 loss 下降量 \(r_t\) 给它打分。对 \(K\) 次独立抽样（draw）取平均，</span></p>
+  <div class="eq"><span>\(\hat g_t = -\dfrac{1}{K\sigma}\displaystyle\sum_{i=1}^{K} r_t^{(i)}\, a_t^{(i)}\)</span></div>
+  <p><span class="en">estimates the error at the layer's output, and its outer product with the layer's cached input is the weight gradient. \(K\) is the population. Attention queries, keys and values are scored against the estimated error of the attention output instead of the loss. The derivation is below for readers who want it.</span><span class="zh" lang="zh-CN">就得到该层输出处的误差估计，它与该层缓存输入的外积即权重梯度。\(K\) 称为 population。注意力的 query、key 和 value 不直接用 loss 打分，而是用注意力输出的误差估计打分。想看推导的读者可以展开下面一节。</span></p>
+  <details id="derivation">
+    <summary><span class="en">Derivation: why noise times loss change estimates the gradient</span><span class="zh" lang="zh-CN">推导：为什么“噪声 × loss 变化”能估出梯度</span></summary>
+    <p><span class="en"><b>What is estimated.</b> For \(y_t = W x_t\), backprop gives \(\partial L / \partial W = \sum_t \delta_t x_t^\top\) with \(\delta_t = \partial L / \partial y_t\). The input \(x_t\) is known from the forward pass, so only \(\delta_t\) needs the backward pass. Dust estimates \(\delta_t\) without it.</span><span class="zh" lang="zh-CN"><b>要估计的量。</b>对 \(y_t = W x_t\)，backprop 给出 \(\partial L / \partial W = \sum_t \delta_t x_t^\top\)，其中 \(\delta_t = \partial L / \partial y_t\)。输入 \(x_t\) 在前向时已知，只有 \(\delta_t\) 需要反向传播。Dust 不做反向传播来估计 \(\delta_t\)。</span></p>
+    <p><span class="en"><b>The estimator.</b> The noise goes on the layer's output, not on its weights: \(y_s \to y_s + \sigma a_s\) at every token \(s\), with \(W\) unchanged. A first-order Taylor expansion of the loss in these outputs gives the perturbed loss \(L + \sigma \sum_s \delta_s^\top a_s\), where \(\delta_s = \partial L / \partial y_s\) is the quantity defined above at token \(s\); the index \(s\) runs over all tokens and \(t\) is the one being estimated. The reward is therefore \(r \approx -\sigma \sum_s \delta_s^\top a_s\). Multiplying by one token's noise and averaging,</span><span class="zh" lang="zh-CN"><b>估计器。</b>噪声加在该层的输出上，而不是权重上：每个 token \(s\) 处 \(y_s \to y_s + \sigma a_s\)，\(W\) 不变。把 loss 对这些输出做一阶泰勒展开，扰动后的 loss 是 \(L + \sigma \sum_s \delta_s^\top a_s\)，其中 \(\delta_s = \partial L / \partial y_s\) 就是上面定义的量在 token \(s\) 处的取值；下标 \(s\) 遍历所有 token，\(t\) 是当前要估计的那个。于是打分 \(r \approx -\sigma \sum_s \delta_s^\top a_s\)。把它乘上某个 token 的噪声再取期望，</span></p>
+    <div class="eq"><span>\(-\dfrac{1}{\sigma}\,\mathbb{E}\big[r\,a_t\big] = \mathbb{E}\big[a_t a_t^\top\big]\,\delta_t + \displaystyle\sum_{s \neq t} \mathbb{E}\big[a_t a_s^\top\big]\,\delta_s = \delta_t ,\)</span></div>
+    <p><span class="en">because \(\mathbb{E}[a_t a_t^\top] = I\) and the noise at different tokens is independent with zero mean. Replacing the expectation by an average over \(K\) draws gives \(\hat g_t\).</span><span class="zh" lang="zh-CN">因为 \(\mathbb{E}[a_t a_t^\top] = I\)，且不同 token 的噪声相互独立、均值为零。把期望换成 \(K\) 次 draw 的平均，就得到 \(\hat g_t\)。</span></p>
+    <p><span class="en"><b>Rewards per token.</b> The total loss also moves because of the noise at every other token, and that part of the reward has nothing to do with \(a_t\). Over many draws it averages to zero, so it does not bias the estimate. In any single draw it is a large random number multiplying \(a_t\): for a sequence of \(T\) tokens its variance is on the order of \(T\) times that of the signal, so about \(T\) times as many draws would be needed. Dust therefore rewards a token with the loss reduction \(c_s\) at individual positions, not with the change of the total loss. Let \(\ell_s\) be the next-token cross-entropy at position \(s\) and \(\ell_s^{(i)}\) its value under draw \(i\). For the \(n\) draws evaluated together in one batched forward pass, \(c_s^{(i)} = \tfrac{1}{n}\sum_{j=1}^{n} \ell_s^{(j)} - \ell_s^{(i)}\): how much lower the loss at \(s\) is under this draw than under the average draw. The reward of the noise at token \(t\) is then</span><span class="zh" lang="zh-CN"><b>逐 token 打分。</b>总 loss 的变化里还包含其他所有 token 的噪声造成的部分，这部分打分和 \(a_t\) 毫无关系。对很多次 draw 取平均时它趋于零，所以不会让估计有偏；但在单次 draw 里，它是一个很大的随机数乘在 \(a_t\) 上：序列长为 \(T\) 时，它的方差大约是信号的 \(T\) 倍，也就是需要约 \(T\) 倍的 draw 才能平均掉。所以 Dust 不用总 loss 的变化，而是用各个位置上的 loss 下降量 \(c_s\) 来打分。记 \(\ell_s\) 为位置 \(s\) 处预测下一个 token 的交叉熵，\(\ell_s^{(i)}\) 为第 \(i\) 次 draw 下的取值。对同一次批量前向里一起评估的 \(n\) 次 draw，\(c_s^{(i)} = \tfrac{1}{n}\sum_{j=1}^{n} \ell_s^{(j)} - \ell_s^{(i)}\)，即这次 draw 下位置 \(s\) 的 loss 比平均 draw 低多少。token \(t\) 处噪声的打分则是</span></p>
+    <div class="eq"><span>\(r_t = \displaystyle\sum_{s \ge t} \gamma^{\,s-t}\, c_s .\)</span></div>
+    <p><span class="en">Under causal attention a perturbation at \(t\) cannot change the loss at earlier tokens, so dropping them only removes variance. The decay \(\gamma\) trades bias for variance. With \(\gamma = 1\) the estimate is unbiased for backprop's \(\delta_t\) to first order. With \(\gamma = 0\) it keeps only the token's own loss and estimates \(\partial \ell_t / \partial y_t\), leaving out the later tokens that read this activation through attention. The paper uses \(\gamma = 0\) for layers scored by the loss and about 0.98 for keys and values. The baseline in \(c_s\) is the mean over draws and not the unperturbed loss because noise shifts the loss by a second-order amount that is about the same in every draw, typically upward, and that common offset would multiply \(a_t\) as pure noise. A baseline that does not depend on \(a_t\) leaves the expectation unchanged, since \(\mathbb{E}[a_t] = 0\). This mean includes the draw itself, which shrinks the estimate by the known factor \((n-1)/n\) without changing its direction. The release uses \(n\) = 2 to 16 depending on the population.</span><span class="zh" lang="zh-CN">在因果注意力下，\(t\) 处的扰动改变不了更早 token 的 loss，所以丢掉它们只会减小方差。衰减 \(\gamma\) 在偏差和方差之间折中。\(\gamma = 1\) 时，估计在一阶近似下是 backprop 的 \(\delta_t\) 的无偏估计。\(\gamma = 0\) 时只保留本 token 的 loss，估计的是 \(\partial \ell_t / \partial y_t\)，漏掉了后面通过注意力读取这个激活的 token。论文对用 loss 打分的层取 \(\gamma = 0\)，对 key 和 value 取约 0.98。\(c_s\) 用同批 draw 的均值而不是未扰动的 loss 作基线，是因为噪声会让 loss 整体偏移一个二阶小量（通常是升高），每次 draw 都差不多；这个公共偏移乘在 \(a_t\) 上就是纯噪声。只要基线与 \(a_t\) 无关，由于 \(\mathbb{E}[a_t] = 0\)，期望不变。这里的均值包含了本次 draw 自己，所以估计会按已知系数 \((n-1)/n\) 缩小，方向不变。release 里 \(n\) 随 population 取 2 到 16。</span></p>
+    <p><span class="en"><b>Why the population must be large.</b> One draw, \(a\,(a^\top \delta)\), has the right mean, but \(a\) has \(d\) dimensions and only the one along \(\delta\) carries signal. After \(K\) draws the cosine with the true gradient is roughly \(1 / \sqrt{1 + c/K}\) with \(c\) of the order of \(d\), plus interference from the other perturbed tokens and layers. The paper fits \(c_{\max} / \sqrt{1 + c/K}\) to its measured cosines.</span><span class="zh" lang="zh-CN"><b>为什么 population 必须很大。</b>单次 draw 的估计 \(a\,(a^\top \delta)\) 均值正确，但 \(a\) 有 \(d\) 个维度，只有沿 \(\delta\) 的那一个带信号。\(K\) 次 draw 之后，它与真实梯度的余弦大致是 \(1 / \sqrt{1 + c/K}\)，其中 \(c\) 与 \(d\) 同量级，再加上其他被扰动的 token 和层带来的干扰。论文用 \(c_{\max} / \sqrt{1 + c/K}\) 拟合它测到的余弦。</span></p>
+    <p><span class="en"><b>Virtual population.</b> Adding \(\sigma a_t\) to the output at token \(t\) is the same as using the weights \(W + \sigma a_t x_t^\top / \lVert x_t \rVert^2\) at that token alone, a rank-one weight perturbation. Each token has its own \(a_t\), so one forward pass evaluates as many weight perturbations as there are tokens in the batch, where weight-space evolution strategies evaluate one.</span><span class="zh" lang="zh-CN"><b>虚拟 population。</b>在 token \(t\) 的输出上加 \(\sigma a_t\)，等价于只在这个 token 上使用权重 \(W + \sigma a_t x_t^\top / \lVert x_t \rVert^2\)，即一个秩一的权重扰动。每个 token 有自己的 \(a_t\)，所以一次前向评估的权重扰动数等于 batch 里的 token 数，而权重空间的进化策略一次只评估一个。</span></p>
+    <p><span class="en"><b>Attention internals.</b> Noise on queries, keys and values moves the loss too little to read. Dust first estimates the error \(\hat g^{\,o}_s\) at the attention output as above, then recomputes only that block's attention under the noise and scores the change \(\Delta o_s\) of its output with \(c_s = -\langle \hat g^{\,o}_s, \Delta o_s \rangle\), a linear stand-in for the loss reduction.</span><span class="zh" lang="zh-CN"><b>注意力内部。</b>query、key、value 上的噪声对 loss 的影响太小，读不出来。Dust 先按上面的办法估出注意力输出处的误差 \(\hat g^{\,o}_s\)，再只重算这一层在噪声下的注意力，用 \(c_s = -\langle \hat g^{\,o}_s, \Delta o_s \rangle\) 给输出的变化 \(\Delta o_s\) 打分，作为 loss 下降量的线性替代。</span></p>
+    <p class="note"><span class="en">Our reading, not the paper's: with \(\gamma = 0\) the estimate leaves out the effect of an activation on later tokens, so it targets a truncated gradient rather than backprop's. That may be one reason the fitted ceilings \(c_{\max}\) stay below one for most layers. And since the estimate gets noisier relative to the signal as training proceeds, it fits what we see below: the gap to backprop widens with steps, and a trained checkpoint needs a smaller learning rate.</span><span class="zh" lang="zh-CN">以下是我们的解读，不是论文的说法：\(\gamma = 0\) 时，估计漏掉了一个激活对后续 token 的影响，所以它逼近的是截断后的梯度，而不是 backprop 的梯度。这可能是多数层拟合出的上限 \(c_{\max}\) 低于 1 的原因之一。另外，随着训练推进，估计的噪声相对信号越来越大，这与下文看到的现象相符：与 backprop 的差距随步数扩大，训练过的 checkpoint 需要更小的学习率。</span></p>
+  </details>
+  <dl class="defs">
+    <dt><span class="en">Paper</span><span class="zh" lang="zh-CN">论文</span></dt><dd><span class="en">Dahal, Mandal, Gülbahar and Vegesna, <a href="https://qlabs.sh/research/dust">Dust: Pretraining Transformers Without Backpropagation</a>, Q Labs, October 2026.</span><span class="zh" lang="zh-CN">Dahal、Mandal、Gülbahar 与 Vegesna，<a href="https://qlabs.sh/research/dust">Dust: Pretraining Transformers Without Backpropagation</a>，Q Labs，2026 年 10 月。</span></dd>
+    <dt><span class="en">Code</span><span class="zh" lang="zh-CN">代码</span></dt><dd><span class="en">The <a href="https://github.com/qlabs-eng/dust">official release</a> at commit <code>2fdb01b</code>, unmodified for every SGD result. It is a minimal implementation: each draw reruns the whole forward pass, where the paper reruns only the blocks after the perturbed one.</span><span class="zh" lang="zh-CN"><a href="https://github.com/qlabs-eng/dust">官方 release</a>，commit <code>2fdb01b</code>；所有 SGD 结果都用未改动的原代码。它是最小实现：每次 draw 重跑整个前向，而论文只重跑被扰动层之后的部分。</span></dd>
+    <dt><span class="en">Model</span><span class="zh" lang="zh-CN">模型</span></dt><dd><span class="en">A decoder-only transformer with 8 blocks, width 512 and 37.7M parameters: rotary positions, normalized queries and keys, a squared-ReLU feed-forward layer, value embeddings and an untied output head.</span><span class="zh" lang="zh-CN">仅解码器的 transformer，8 层、宽度 512、37.7M 参数：旋转位置编码、归一化的 query 与 key、平方 ReLU 的前馈层、value embedding，以及不共享权重的输出 head。</span></dd>
+    <dt><span class="en">Data</span><span class="zh" lang="zh-CN">数据</span></dt><dd><span class="en">FineWeb with a 4,096-token byte-pair encoding (BPE) vocabulary, in batches of 8 sequences of 2,048 tokens: 61 steps for 1M tokens and 610 for 10M. Validation and test are 544 held-out sequences each.</span><span class="zh" lang="zh-CN">FineWeb，4,096 词表的字节对编码（byte-pair encoding，BPE），每个 batch 为 8 条 2,048 token 的序列：1M token 是 61 步，10M 是 610 步。验证集和测试集各 544 条留出序列。</span></dd>
+    <dt><span class="en">Metric</span><span class="zh" lang="zh-CN">指标</span></dt><dd><span class="en">Test loss at the checkpoint with the lowest validation loss, as in the paper.</span><span class="zh" lang="zh-CN">验证 loss 最低的 checkpoint 上的 test loss，与论文一致。</span></dd>
+    <dt><span class="en">Added here</span><span class="zh" lang="zh-CN">我们补充的</span></dt><dd><span class="en">Backprop with AdamW at the paper's Adam settings (Appendix F); Dust under Adam, rebuilt from Appendices E and F because the release has only SGD; and continuation runs from backprop checkpoints.</span><span class="zh" lang="zh-CN">按论文 Adam 设置（附录 F）训练的 backprop AdamW；因 release 只有 SGD 而根据附录 E、F 重建的 Adam 版 Dust；以及从 backprop checkpoint 出发的续训。</span></dd>
+    <dt><span class="en">Seeds</span><span class="zh" lang="zh-CN">seed</span></dt><dd><span class="en">Three for backprop, one (42) for every Dust run.</span><span class="zh" lang="zh-CN">backprop 3 个，Dust 每个运行 1 个（42）。</span></dd>
+  </dl>
+  <p><span class="en">The release covers 1M and 10M tokens at populations from 256 to 16,384 with SGD. It leaves out the population of 64, the 100k- and 20M-token budgets, the EGGROLL baseline, the Adam runs, the model-size study and the gradient-cosine measurements, so none of those is checked here except Adam at 1M tokens.</span><span class="zh" lang="zh-CN">release 覆盖 1M 与 10M token、population 256 到 16,384 的 SGD 运行。它不包含 population 64、100k 与 20M token 的预算、EGGROLL baseline、Adam 运行、模型尺寸实验和梯度余弦测量，所以除了 1M token 的 Adam 以外，这些都没有在这里核对。</span></p>
+
+  <h2 id="repro"><span class="en">Does the release reproduce the paper?</span><span class="zh" lang="zh-CN">release 能复现论文吗？</span></h2>
+  <p><span class="en">Yes. Every cell the release covers lands on the published number, and so does backprop with SGD (<a class="xref" href="#tab-repro">Table 1</a>, <a class="xref" href="#fig-ladder">Figure 1</a>). The Adam rows also test our reconstruction: the appendix gives the number of draws per layer family under Adam but not their split across blocks, so we rescaled the SGD split. The four published points at 1M tokens are matched.</span><span class="zh" lang="zh-CN">能。release 覆盖的每一格都落在论文数值上，backprop SGD 也是（<a class="xref" href="#tab-repro">表 1</a>、<a class="xref" href="#fig-ladder">图 1</a>）。Adam 的几行同时检验了我们的重建：附录给了 Adam 下每类层的 draw 总数，但没给它们在各层之间的分配，我们按 SGD 的分配等比缩放。1M token 上论文公布的四个点都对上了。</span></p>
+  <figure class="tbl" id="tab-repro">
+    <figcaption><span class="fignum"><span class="en">Table 1.</span><span class="zh" lang="zh-CN">表 1</span></span> <span class="en">Test loss against the published values. Published values are means over three seeds (SGD) or five (Adam); ours are one seed for Dust. The paper has no AdamW or Adam run at 10M tokens.</span><span class="zh" lang="zh-CN">test loss 与论文数值的对照。论文数值是 3 个 seed（SGD）或 5 个 seed（Adam）的均值；我们的 Dust 是单个 seed。论文在 10M token 上没有 AdamW 或 Adam 的运行。</span></figcaption>
+    <div class="table-wrap"><table class=""><thead><tr><th><span class="en">Run</span><span class="zh" lang="zh-CN">运行</span></th><th class="num"><span class="en">Ours</span><span class="zh" lang="zh-CN">我们</span></th><th class="num"><span class="en">Paper</span><span class="zh" lang="zh-CN">论文</span></th><th class="num"><span class="en">Difference</span><span class="zh" lang="zh-CN">差</span></th></tr></thead><tbody><tr class="group"><td colspan="4"><span class="en">1M tokens (61 steps)</span><span class="zh" lang="zh-CN">1M token（61 步）</span></td></tr><tr><td><span class="en">Backprop (SGD), 3 seeds</span><span class="zh" lang="zh-CN">Backprop（SGD），3 个 seed</span></td><td class="num">5.959</td><td class="num">5.959</td><td class="num">0.000</td></tr><tr><td><span class="en">Backprop (AdamW), 3 seeds</span><span class="zh" lang="zh-CN">Backprop（AdamW），3 个 seed</span></td><td class="num">5.364</td><td class="num">5.361</td><td class="num">0.003</td></tr><tr><td><span class="en">Dust (SGD), 256</span><span class="zh" lang="zh-CN">Dust（SGD），256</span></td><td class="num">6.054</td><td class="num">6.067</td><td class="num">&minus;0.013</td></tr><tr><td><span class="en">Dust (SGD), 1k</span><span class="zh" lang="zh-CN">Dust（SGD），1k</span></td><td class="num">5.933</td><td class="num">5.934</td><td class="num">&minus;0.001</td></tr><tr><td><span class="en">Dust (SGD), 4k</span><span class="zh" lang="zh-CN">Dust（SGD），4k</span></td><td class="num">5.878</td><td class="num">5.911</td><td class="num">&minus;0.033</td></tr><tr><td><span class="en">Dust (SGD), 16k</span><span class="zh" lang="zh-CN">Dust（SGD），16k</span></td><td class="num">5.862</td><td class="num">5.916</td><td class="num">&minus;0.054</td></tr><tr><td><span class="en">Dust (Adam), 256</span><span class="zh" lang="zh-CN">Dust（Adam），256</span></td><td class="num">5.843</td><td class="num">5.836</td><td class="num">0.007</td></tr><tr><td><span class="en">Dust (Adam), 1k</span><span class="zh" lang="zh-CN">Dust（Adam），1k</span></td><td class="num">5.603</td><td class="num">5.594</td><td class="num">0.009</td></tr><tr><td><span class="en">Dust (Adam), 4k</span><span class="zh" lang="zh-CN">Dust（Adam），4k</span></td><td class="num">5.499</td><td class="num">5.500</td><td class="num">&minus;0.001</td></tr><tr><td><span class="en">Dust (Adam), 16k</span><span class="zh" lang="zh-CN">Dust（Adam），16k</span></td><td class="num">5.382</td><td class="num">5.402</td><td class="num">&minus;0.020</td></tr><tr class="group"><td colspan="4"><span class="en">10M tokens (610 steps)</span><span class="zh" lang="zh-CN">10M token（610 步）</span></td></tr><tr><td><span class="en">Backprop (SGD), 3 seeds</span><span class="zh" lang="zh-CN">Backprop（SGD），3 个 seed</span></td><td class="num">4.989</td><td class="num">4.989</td><td class="num">0.000</td></tr><tr><td><span class="en">Backprop (AdamW), 3 seeds</span><span class="zh" lang="zh-CN">Backprop（AdamW），3 个 seed</span></td><td class="num">3.939</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Dust (SGD), 256</span><span class="zh" lang="zh-CN">Dust（SGD），256</span></td><td class="num">5.230</td><td class="num">5.231</td><td class="num">&minus;0.001</td></tr><tr><td><span class="en">Dust (SGD), 1k</span><span class="zh" lang="zh-CN">Dust（SGD），1k</span></td><td class="num">5.118</td><td class="num">5.111</td><td class="num">0.007</td></tr><tr><td><span class="en">Dust (SGD), 4k</span><span class="zh" lang="zh-CN">Dust（SGD），4k</span></td><td class="num">5.070</td><td class="num">5.072</td><td class="num">&minus;0.002</td></tr><tr><td><span class="en">Dust (SGD), 16k</span><span class="zh" lang="zh-CN">Dust（SGD），16k</span></td><td class="num">5.047</td><td class="num">5.049</td><td class="num">&minus;0.002</td></tr><tr><td><span class="en">Dust (Adam), 256</span><span class="zh" lang="zh-CN">Dust（Adam），256</span></td><td class="num">5.171</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Dust (Adam), 1k</span><span class="zh" lang="zh-CN">Dust（Adam），1k</span></td><td class="num">4.854</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Dust (Adam), 4k</span><span class="zh" lang="zh-CN">Dust（Adam），4k</span></td><td class="num">4.560</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Dust (Adam), 16k</span><span class="zh" lang="zh-CN">Dust（Adam），16k</span></td><td class="num">4.436</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr></tbody></table></div>
+  </figure>
+</section>
+
+<section class="mid">
+  <figure class="fig" id="fig-ladder">
+    <div class="fig-tools"><div class="keys" data-for="c-lad1 c-lad10" aria-label="Legend"></div><button type="button" class="reset" hidden><span class="en">Reset zoom</span><span class="zh" lang="zh-CN">重置缩放</span></button></div>
+    <div class="grid2">
+      <div><div class="panel-title"><span class="en">(a) 1M tokens</span><span class="zh" lang="zh-CN">(a) 1M token</span></div><div class="chart"><canvas id="c-lad1" aria-label="Test loss against population at 1M tokens"></canvas></div></div>
+      <div><div class="panel-title"><span class="en">(b) 10M tokens</span><span class="zh" lang="zh-CN">(b) 10M token</span></div><div class="chart"><canvas id="c-lad10" aria-label="Test loss against population at 10M tokens"></canvas></div></div>
+    </div>
+    <figcaption><span class="fignum"><span class="en">Figure 1.</span><span class="zh" lang="zh-CN">图 1</span></span> <span class="en">Test loss against population. Solid lines with points are our runs and dashed lines the published means. The horizontal lines are backprop with SGD (dotted) and with AdamW (solid).</span><span class="zh" lang="zh-CN">test loss 随 population 的变化。带点的实线是我们的运行，虚线是论文公布的均值。水平线是 backprop：SGD（点线）与 AdamW（实线）。</span></figcaption>
+  </figure>
+</section>
+
+<section class="col">
+  <h2 id="adamw"><span class="en">Against AdamW</span><span class="zh" lang="zh-CN">与 AdamW 对比</span></h2>
+  <p><span class="en">Within one optimizer the paper's claim holds. With SGD, Dust is level with backprop from a population of about a thousand at 1M tokens and close behind it at 10M. But SGD at a constant learning rate is a weak way to train this model. Backprop with AdamW is far better at both budgets, and its lead over SGD grows with tokens (<a class="xref" href="#tab-adamw">Table 2</a>). The paper's own Adam experiment stops at 1M tokens, where a whole run is 61 steps.</span><span class="zh" lang="zh-CN">在同一种优化器内，论文的结论成立。用 SGD 时，Dust 在 1M token 上从 population 约一千起就与 backprop 持平，在 10M 上紧随其后。但恒定学习率的 SGD 并不是训练这个模型的好办法。backprop 换成 AdamW 后在两个预算上都好得多，而且它对 SGD 的领先随 token 数增大（<a class="xref" href="#tab-adamw">表 2</a>）。论文自己的 Adam 实验只做到 1M token，整个训练只有 61 步。</span></p>
+  <figure class="tbl" id="tab-adamw">
+    <figcaption><span class="fignum"><span class="en">Table 2.</span><span class="zh" lang="zh-CN">表 2</span></span> <span class="en">Test loss of every method and its distance above backprop with AdamW. Backprop rows are means of three seeds, Dust rows one seed.</span><span class="zh" lang="zh-CN">各方法的 test loss 及其高出 backprop AdamW 的量。backprop 行是 3 个 seed 的均值，Dust 行是单个 seed。</span></figcaption>
+    <div class="table-wrap"><table class=""><thead><tr><th><span class="en">Method</span><span class="zh" lang="zh-CN">方法</span></th><th class="num"><span class="en">1M: test loss</span><span class="zh" lang="zh-CN">1M：test loss</span></th><th class="num"><span class="en">1M: above AdamW</span><span class="zh" lang="zh-CN">1M：高于 AdamW</span></th><th class="num"><span class="en">10M: test loss</span><span class="zh" lang="zh-CN">10M：test loss</span></th><th class="num"><span class="en">10M: above AdamW</span><span class="zh" lang="zh-CN">10M：高于 AdamW</span></th></tr></thead><tbody><tr><td><span class="en">Backprop (SGD)</span><span class="zh" lang="zh-CN">Backprop（SGD）</span></td><td class="num">5.959</td><td class="num">0.60</td><td class="num">4.989</td><td class="num">1.05</td></tr><tr><td><span class="en">Backprop (AdamW)</span><span class="zh" lang="zh-CN">Backprop（AdamW）</span></td><td class="num">5.364</td><td class="num">0.00</td><td class="num">3.939</td><td class="num">0.00</td></tr><tr><td><span class="en">Dust (SGD), 256</span><span class="zh" lang="zh-CN">Dust（SGD），256</span></td><td class="num">6.054</td><td class="num">0.69</td><td class="num">5.230</td><td class="num">1.29</td></tr><tr><td><span class="en">Dust (SGD), 1k</span><span class="zh" lang="zh-CN">Dust（SGD），1k</span></td><td class="num">5.933</td><td class="num">0.57</td><td class="num">5.118</td><td class="num">1.18</td></tr><tr><td><span class="en">Dust (SGD), 4k</span><span class="zh" lang="zh-CN">Dust（SGD），4k</span></td><td class="num">5.878</td><td class="num">0.51</td><td class="num">5.070</td><td class="num">1.13</td></tr><tr><td><span class="en">Dust (SGD), 16k</span><span class="zh" lang="zh-CN">Dust（SGD），16k</span></td><td class="num">5.862</td><td class="num">0.50</td><td class="num">5.047</td><td class="num">1.11</td></tr><tr><td><span class="en">Dust (Adam), 256</span><span class="zh" lang="zh-CN">Dust（Adam），256</span></td><td class="num">5.843</td><td class="num">0.48</td><td class="num">5.171</td><td class="num">1.23</td></tr><tr><td><span class="en">Dust (Adam), 1k</span><span class="zh" lang="zh-CN">Dust（Adam），1k</span></td><td class="num">5.603</td><td class="num">0.24</td><td class="num">4.854</td><td class="num">0.91</td></tr><tr><td><span class="en">Dust (Adam), 4k</span><span class="zh" lang="zh-CN">Dust（Adam），4k</span></td><td class="num">5.499</td><td class="num">0.13</td><td class="num">4.560</td><td class="num">0.62</td></tr><tr><td><span class="en">Dust (Adam), 16k</span><span class="zh" lang="zh-CN">Dust（Adam），16k</span></td><td class="num">5.382</td><td class="num">0.02</td><td class="num">4.436</td><td class="num">0.50</td></tr></tbody></table></div>
+  </figure>
+  <p><span class="en">At 10M tokens Dust under Adam is the better Dust variant from a population of 1k, and it beats backprop with SGD. Against backprop with AdamW the answer depends on when one looks (<a class="xref" href="#fig-curves">Figure 2</a>). For the first hundred steps the largest population is nearly on top of backprop. From a population of 1k the gap then widens until the end of training; at 256 Dust starts slowly, so the gap narrows before it widens again (<a class="xref" href="#tab-gap">Table 3</a>). A larger population delays the divergence and does not remove it, which agrees with the paper's own remark that the population needed to match backprop grows with tokens.</span><span class="zh" lang="zh-CN">在 10M token 上，从 population 1k 起 Adam 版 Dust 都优于 SGD 版，并且超过了 backprop SGD。和 backprop AdamW 相比，结论取决于看训练的哪个阶段（<a class="xref" href="#fig-curves">图 2</a>）。前一百步里，最大 population 的 Dust 几乎贴着 backprop；此后 population 1k 及以上的差距持续扩大，直到训练结束；population 256 的 Dust 起步慢，差距先缩小再扩大（<a class="xref" href="#tab-gap">表 3</a>）。更大的 population 只是推迟了分叉，并没有消除它，这与论文自己的说法一致：要追平 backprop 所需的 population 随 token 数增长。</span></p>
+</section>
+
+<section class="mid">
+  <figure class="fig" id="fig-curves">
+    <div class="fig-tools"><div class="keys tall" data-for="c-val c-gap" aria-label="Legend"></div><button type="button" class="reset" hidden><span class="en">Reset zoom</span><span class="zh" lang="zh-CN">重置缩放</span></button></div>
+    <div class="grid2">
+      <div><div class="panel-title"><span class="en">(a) Validation loss</span><span class="zh" lang="zh-CN">(a) 验证 loss</span></div><div class="chart"><canvas id="c-val" aria-label="Validation loss against training step at 10M tokens"></canvas></div></div>
+      <div><div class="panel-title"><span class="en">(b) Dust under Adam minus backprop with AdamW</span><span class="zh" lang="zh-CN">(b) Adam 版 Dust 减去 backprop AdamW</span></div><div class="chart"><canvas id="c-gap" aria-label="Gap between Dust under Adam and backprop with AdamW against training step"></canvas></div></div>
+    </div>
+    <figcaption><span class="fignum"><span class="en">Figure 2.</span><span class="zh" lang="zh-CN">图 2</span></span> <span class="en">Training at 10M tokens, seed 42. (a) Validation loss against step; warm colours are Dust with SGD and blue colours Dust under Adam, darker for larger populations. (b) The validation loss of Dust under Adam minus that of backprop with AdamW at the same step.</span><span class="zh" lang="zh-CN">10M token 的训练过程，seed 42。(a) 验证 loss 随步数的变化；暖色是 SGD 版 Dust，蓝色是 Adam 版 Dust，population 越大颜色越深。(b) 同一步数下 Adam 版 Dust 的验证 loss 减去 backprop AdamW 的验证 loss。</span></figcaption>
+  </figure>
+</section>
+
+<section class="col">
+  <figure class="tbl" id="tab-gap">
+    <figcaption><span class="fignum"><span class="en">Table 3.</span><span class="zh" lang="zh-CN">表 3</span></span> <span class="en">Validation loss of backprop with AdamW at 10M tokens, and how far above it Dust under Adam is at the same step (seed 42).</span><span class="zh" lang="zh-CN">10M token 上 backprop AdamW 的验证 loss，以及同一步数下 Adam 版 Dust 高出它的量（seed 42）。</span></figcaption>
+    <div class="table-wrap"><table class=""><thead><tr><th><span class="en">Step</span><span class="zh" lang="zh-CN">步数</span></th><th class="num">100</th><th class="num">200</th><th class="num">300</th><th class="num">400</th><th class="num">500</th><th class="num">610</th></tr></thead><tbody><tr><td><span class="en">Backprop (AdamW), validation loss</span><span class="zh" lang="zh-CN">Backprop（AdamW），验证 loss</span></td><td class="num">5.11</td><td class="num">4.71</td><td class="num">4.49</td><td class="num">4.27</td><td class="num">4.11</td><td class="num">3.98</td></tr><tr><td><span class="en">Dust (Adam), 256</span><span class="zh" lang="zh-CN">Dust（Adam），256</span></td><td class="num">1.07</td><td class="num">0.89</td><td class="num">0.85</td><td class="num">0.98</td><td class="num">1.10</td><td class="num">1.20</td></tr><tr><td><span class="en">Dust (Adam), 1k</span><span class="zh" lang="zh-CN">Dust（Adam），1k</span></td><td class="num">0.26</td><td class="num">0.46</td><td class="num">0.58</td><td class="num">0.72</td><td class="num">0.82</td><td class="num">0.88</td></tr><tr><td><span class="en">Dust (Adam), 4k</span><span class="zh" lang="zh-CN">Dust（Adam），4k</span></td><td class="num">0.13</td><td class="num">0.24</td><td class="num">0.32</td><td class="num">0.43</td><td class="num">0.53</td><td class="num">0.59</td></tr><tr><td><span class="en">Dust (Adam), 16k</span><span class="zh" lang="zh-CN">Dust（Adam），16k</span></td><td class="num">0.04</td><td class="num">0.14</td><td class="num">0.20</td><td class="num">0.31</td><td class="num">0.40</td><td class="num">0.47</td></tr></tbody></table></div>
+  </figure>
+
+  <h2 id="tuning"><span class="en">Can tuning close the gap?</span><span class="zh" lang="zh-CN">调参能补上差距吗？</span></h2>
+  <p><span class="en">Not along the two axes we tried. Dust's Adam settings come from the paper's 61-step runs, so at a population of 1k we varied the two that most plausibly depend on run length, the learning rate and \(\beta_1\). Halving the learning rate helps slightly and every other change is worse (<a class="xref" href="#tab-tuning">Table 4</a>). Backprop's learning rate is bracketed at both budgets, with the paper's value best.</span><span class="zh" lang="zh-CN">在我们试过的两个方向上不能。Dust 的 Adam 设置来自论文 61 步的运行，所以我们在 population 1k 上改了最可能随训练长度变化的两项：学习率和 \(\beta_1\)。学习率减半略有帮助，其余改动都更差（<a class="xref" href="#tab-tuning">表 4</a>）。backprop 的学习率在两个预算上都已被夹住，论文的取值最好。</span></p>
+  <figure class="tbl" id="tab-tuning">
+    <figcaption><span class="fignum"><span class="en">Table 4.</span><span class="zh" lang="zh-CN">表 4</span></span> <span class="en">Test loss under different optimizer settings, seed 42.</span><span class="zh" lang="zh-CN">不同优化器设置下的 test loss，seed 42。</span></figcaption>
+    <div class="table-wrap"><table class=""><thead><tr><th><span class="en">Setting</span><span class="zh" lang="zh-CN">设置</span></th><th class="num"><span class="en">Test loss</span><span class="zh" lang="zh-CN">test loss</span></th></tr></thead><tbody><tr class="group"><td colspan="2"><span class="en">Backprop (AdamW), matrix learning rate; seed 42</span><span class="zh" lang="zh-CN">Backprop（AdamW），矩阵学习率；seed 42</span></td></tr><tr><td><span class="en">1M tokens, learning rate 0.001</span><span class="zh" lang="zh-CN">1M token，学习率 0.001</span></td><td class="num">5.555</td></tr><tr><td><span class="en">1M tokens, learning rate 0.002</span><span class="zh" lang="zh-CN">1M token，学习率 0.002</span></td><td class="num">5.372</td></tr><tr><td><span class="en">1M tokens, learning rate 0.004</span><span class="zh" lang="zh-CN">1M token，学习率 0.004</span></td><td class="num">5.453</td></tr><tr><td><span class="en">10M tokens, learning rate 0.0005</span><span class="zh" lang="zh-CN">10M token，学习率 0.0005</span></td><td class="num">4.160</td></tr><tr><td><span class="en">10M tokens, learning rate 0.001</span><span class="zh" lang="zh-CN">10M token，学习率 0.001</span></td><td class="num">3.987</td></tr><tr><td><span class="en">10M tokens, learning rate 0.002</span><span class="zh" lang="zh-CN">10M token，学习率 0.002</span></td><td class="num">3.977</td></tr><tr><td><span class="en">10M tokens, learning rate 0.004</span><span class="zh" lang="zh-CN">10M token，学习率 0.004</span></td><td class="num">4.154</td></tr><tr class="group"><td colspan="2"><span class="en">Dust (Adam), population 1k, 10M tokens; seed 42</span><span class="zh" lang="zh-CN">Dust（Adam），population 1k，10M token；seed 42</span></td></tr><tr><td><span class="en">Appendix settings: learning rate 0.0015, &beta;<sub>1</sub> 0.7</span><span class="zh" lang="zh-CN">附录设置：学习率 0.0015，&beta;<sub>1</sub> 0.7</span></td><td class="num">4.854</td></tr><tr><td><span class="en">Learning rate halved (0.00075)</span><span class="zh" lang="zh-CN">学习率减半（0.00075）</span></td><td class="num">4.832</td></tr><tr><td><span class="en">Learning rate doubled (0.003)</span><span class="zh" lang="zh-CN">学习率加倍（0.003）</span></td><td class="num">4.987</td></tr><tr><td><span class="en">&beta;<sub>1</sub> 0.9</span><span class="zh" lang="zh-CN">&beta;<sub>1</sub> 0.9</span></td><td class="num">4.976</td></tr><tr><td><span class="en">&beta;<sub>1</sub> 0.95</span><span class="zh" lang="zh-CN">&beta;<sub>1</sub> 0.95</span></td><td class="num">5.003</td></tr></tbody></table></div>
+  </figure>
+  <p><span class="en">To see how much a result moves with the seed, we repeat one Dust cell with three seeds and set it beside backprop's three (<a class="xref" href="#tab-seeds">Table 5</a>).</span><span class="zh" lang="zh-CN">为了看结果随 seed 的波动有多大，我们把一个 Dust 格子用三个 seed 重复，并与 backprop 的三个 seed 并列（<a class="xref" href="#tab-seeds">表 5</a>）。</span></p>
+  <figure class="tbl" id="tab-seeds">
+    <figcaption><span class="fignum"><span class="en">Table 5.</span><span class="zh" lang="zh-CN">表 5</span></span> <span class="en">Test loss by seed at 10M tokens. A dash marks a run that had not finished when this page was built.</span><span class="zh" lang="zh-CN">10M token 上各 seed 的 test loss。短横线表示本页生成时尚未跑完的运行。</span></figcaption>
+    <div class="table-wrap"><table class=""><thead><tr><th><span class="en">Method</span><span class="zh" lang="zh-CN">方法</span></th><th class="num">Seed 42</th><th class="num">Seed 43</th><th class="num">Seed 44</th><th class="num"><span class="en">Mean of finished</span><span class="zh" lang="zh-CN">已完成的均值</span></th></tr></thead><tbody><tr><td><span class="en">Backprop (AdamW)</span><span class="zh" lang="zh-CN">Backprop（AdamW）</span></td><td class="num">3.977</td><td class="num">3.901</td><td class="num">3.940</td><td class="num">3.939</td></tr><tr><td><span class="en">Dust (Adam), 4k</span><span class="zh" lang="zh-CN">Dust（Adam），4k</span></td><td class="num">4.560</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">4.560</td></tr></tbody></table></div>
+  </figure>
+  <p><span class="en">We did not vary how draws are split across layers, the noise scales or the credit decay. The paper tuned these for SGD in its largest 10M-token cell and reports that only a slower decay and a shift of draws toward attention paid off there.</span><span class="zh" lang="zh-CN">我们没有改变 draw 在各层之间的分配、噪声尺度和 credit decay。论文在 10M token 的最大一格上为 SGD 调过这些，称只有更慢的 decay 和把 draw 向注意力一侧倾斜有收益。</span></p>
+
+  <h2 id="cpt"><span class="en">Continuing a backprop checkpoint</span><span class="zh" lang="zh-CN">从 backprop checkpoint 续训</span></h2>
+  <p><span class="en">The paper argues that backprop explores the loss landscape poorly. If so, a zeroth-order method should be able to improve a model that backprop has trained, a test proposed by You Jiacheng. We trained two checkpoints with backprop and AdamW, on 10M and on 100M tokens, and continued each for 200 steps on tokens that neither the checkpoint nor the held-out sets contain. All runs but one start from a fresh optimizer state, so backprop and Dust are treated alike; the remaining run keeps backprop's AdamW state as the uninterrupted reference.</span><span class="zh" lang="zh-CN">论文认为 backprop 对 loss 地形的探索不足。若是如此，零阶方法应该能改进 backprop 训练过的模型，这是 You Jiacheng 提出的检验。我们用 backprop AdamW 训了两个 checkpoint，分别用 10M 和 100M token，然后各续训 200 步，所用 token 既不在 checkpoint 的训练数据里，也不在留出集里。除一组外，所有运行都从全新的优化器状态开始，以便 backprop 与 Dust 受到同等对待；剩下那组保留 backprop 的 AdamW 状态，作为不中断训练的参照。</span></p>
+</section>
+
+<section class="mid">
+  <figure class="fig" id="fig-cpt">
+    <div class="fig-tools"><div class="keys tall" data-for="c-cpt10 c-cpt100" aria-label="Legend"></div><button type="button" class="reset" hidden><span class="en">Reset zoom</span><span class="zh" lang="zh-CN">重置缩放</span></button></div>
+    <div class="grid2">
+      <div><div class="panel-title"><span class="en">(a) From the 10M-token checkpoint</span><span class="zh" lang="zh-CN">(a) 从 10M token 的 checkpoint 出发</span></div><div class="chart"><canvas id="c-cpt10" aria-label="Validation loss when continuing the 10M-token checkpoint"></canvas></div></div>
+      <div><div class="panel-title"><span class="en">(b) From the 100M-token checkpoint</span><span class="zh" lang="zh-CN">(b) 从 100M token 的 checkpoint 出发</span></div><div class="chart"><canvas id="c-cpt100" aria-label="Validation loss when continuing the 100M-token checkpoint"></canvas></div></div>
+    </div>
+    <figcaption><span class="fignum"><span class="en">Figure 3.</span><span class="zh" lang="zh-CN">图 3</span></span> <span class="en">Validation loss over 200 continuation steps. The dotted grey line is each checkpoint's starting loss. Legend entries give the method and the matrix learning rate; solid lines use 0.0005 and dashed lines the rates tuned for training from scratch. The first step with a fresh optimizer state raises the loss above the plotted range.</span><span class="zh" lang="zh-CN">续训 200 步的验证 loss。灰色点线是各 checkpoint 的起始 loss。图例项给出方法与矩阵学习率；实线用 0.0005，虚线用从头训练时调出的学习率。全新优化器状态的第一步会让 loss 升到绘图范围之外。</span></figcaption>
+  </figure>
+</section>
+
+<section class="col">
+  <figure class="tbl" id="tab-cpt">
+    <figcaption><span class="fignum"><span class="en">Table 6.</span><span class="zh" lang="zh-CN">表 6</span></span> <span class="en">Validation loss during continuation. The last column is the drop of a Dust run from the starting loss by step 200, as a share of the drop of backprop at the same learning rate of 0.0005. Dust's learning rate is that of its matrices; its embedding and scalar rates scale with it as in the appendix.</span><span class="zh" lang="zh-CN">续训过程中的验证 loss。最后一列是 Dust 到第 200 步时相对起始 loss 的降幅，占同样学习率 0.0005 下 backprop 降幅的比例。Dust 的学习率指矩阵的学习率；embedding 与标量的学习率按附录的比例随之缩放。</span></figcaption>
+    <div class="table-wrap"><table class=""><thead><tr><th><span class="en">Method and matrix learning rate</span><span class="zh" lang="zh-CN">方法与矩阵学习率</span></th><th class="num"><span class="en">Step 50</span><span class="zh" lang="zh-CN">第 50 步</span></th><th class="num"><span class="en">Step 100</span><span class="zh" lang="zh-CN">第 100 步</span></th><th class="num"><span class="en">Step 200</span><span class="zh" lang="zh-CN">第 200 步</span></th><th class="num"><span class="en">Share of backprop's drop</span><span class="zh" lang="zh-CN">占 backprop 降幅的比例</span></th></tr></thead><tbody><tr class="group"><td colspan="5"><span class="en">From the 10M-token checkpoint (validation loss 3.980)</span><span class="zh" lang="zh-CN">从 10M token 的 checkpoint 出发（验证 loss 3.980）</span></td></tr><tr><td><span class="en">Backprop, Adam state kept, 0.002</span><span class="zh" lang="zh-CN">Backprop，保留 Adam 状态，0.002</span></td><td class="num">3.933</td><td class="num">3.888</td><td class="num">3.836</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Backprop, 0.002</span><span class="zh" lang="zh-CN">Backprop，0.002</span></td><td class="num">3.940</td><td class="num">3.895</td><td class="num">3.838</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Backprop, 0.001</span><span class="zh" lang="zh-CN">Backprop，0.001</span></td><td class="num">3.891</td><td class="num">3.849</td><td class="num">3.799</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Backprop, 0.0005</span><span class="zh" lang="zh-CN">Backprop，0.0005</span></td><td class="num">3.880</td><td class="num">3.841</td><td class="num">3.796</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Dust 1k, 0.0015</span><span class="zh" lang="zh-CN">Dust 1k，0.0015</span></td><td class="num">3.970</td><td class="num">3.998</td><td class="num">4.048</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Dust 4k, 0.0015</span><span class="zh" lang="zh-CN">Dust 4k，0.0015</span></td><td class="num">3.959</td><td class="num">3.974</td><td class="num">3.986</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Dust 16k, 0.002</span><span class="zh" lang="zh-CN">Dust 16k，0.002</span></td><td class="num">4.006</td><td class="num">4.011</td><td class="num">4.007</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Dust 4k, 0.0005</span><span class="zh" lang="zh-CN">Dust 4k，0.0005</span></td><td class="num">3.900</td><td class="num">3.879</td><td class="num">3.859</td><td class="num">65%</td></tr><tr><td><span class="en">Dust 16k, 0.0005</span><span class="zh" lang="zh-CN">Dust 16k，0.0005</span></td><td class="num">3.891</td><td class="num">3.870</td><td class="num">3.846</td><td class="num">73%</td></tr><tr class="group"><td colspan="5"><span class="en">From the 100M-token checkpoint (validation loss 3.254)</span><span class="zh" lang="zh-CN">从 100M token 的 checkpoint 出发（验证 loss 3.254）</span></td></tr><tr><td><span class="en">Backprop, Adam state kept, 0.002</span><span class="zh" lang="zh-CN">Backprop，保留 Adam 状态，0.002</span></td><td class="num">3.252</td><td class="num">3.252</td><td class="num">3.249</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Backprop, 0.002</span><span class="zh" lang="zh-CN">Backprop，0.002</span></td><td class="num">3.257</td><td class="num">3.255</td><td class="num">3.250</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Backprop, 0.001</span><span class="zh" lang="zh-CN">Backprop，0.001</span></td><td class="num">3.221</td><td class="num">3.215</td><td class="num">3.204</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Backprop, 0.0005</span><span class="zh" lang="zh-CN">Backprop，0.0005</span></td><td class="num">3.211</td><td class="num">3.206</td><td class="num">3.190</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Backprop, 0.00025</span><span class="zh" lang="zh-CN">Backprop，0.00025</span></td><td class="num">3.213</td><td class="num">3.206</td><td class="num">3.190</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Dust 4k, 0.0015</span><span class="zh" lang="zh-CN">Dust 4k，0.0015</span></td><td class="num">3.242</td><td class="num">3.248</td><td class="num">3.257</td><td class="num">&ndash;</td></tr><tr><td><span class="en">Dust 4k, 0.0005</span><span class="zh" lang="zh-CN">Dust 4k，0.0005</span></td><td class="num">3.224</td><td class="num">3.217</td><td class="num">3.207</td><td class="num">73%</td></tr><tr><td><span class="en">Dust 16k, 0.0005</span><span class="zh" lang="zh-CN">Dust 16k，0.0005</span></td><td class="num">3.219</td><td class="num">3.208</td><td class="num">3.199</td><td class="num">85%</td></tr></tbody></table></div>
+  </figure>
+  <ul class="findings">
+    <li><span class="en">At the learning rates tuned for training from scratch, Dust improves neither checkpoint. The loss ends at or above where it started at every population.</span><span class="zh" lang="zh-CN">用从头训练时调出的学习率，Dust 对两个 checkpoint 都没有改进：每个 population 下，最终 loss 都不低于起点。</span></li>
+    <li><span class="en">At a learning rate of 0.0005 Dust lowers the loss steadily from both checkpoints, and a larger population lowers it further. It stays above backprop at the same learning rate throughout (<a class="xref" href="#fig-cpt">Figure 3</a>).</span><span class="zh" lang="zh-CN">把学习率降到 0.0005 后，Dust 在两个 checkpoint 上都能稳定降低 loss，population 越大降得越多；但它始终高于同学习率的 backprop（<a class="xref" href="#fig-cpt">图 3</a>）。</span></li>
+    <li><span class="en">Backprop also gains from the lower learning rate, and at the 100M-token checkpoint the original rate makes no progress at all. That checkpoint therefore mostly tests whether a noisier gradient estimate still works with a small step, and less whether Dust explores better.</span><span class="zh" lang="zh-CN">backprop 同样受益于更低的学习率；在 100M token 的 checkpoint 上，原学习率已经完全不再下降。所以这个 checkpoint 主要检验的是：噪声更大的梯度估计配上小步长还能不能用，而不是 Dust 是否探索得更好。</span></li>
+  </ul>
+  <p><span class="en">The proposal asked for a checkpoint below a loss of 3 with the GPT-2 tokenizer. Ours start at 3.98 and 3.25 with a 4,096-token vocabulary. Losses are not comparable across tokenizers, and these are certainly weaker models than the one proposed.</span><span class="zh" lang="zh-CN">原提议要求的是 GPT-2 tokenizer 下 loss 低于 3 的 checkpoint。我们的起点是 4,096 词表下的 3.98 和 3.25。不同 tokenizer 的 loss 不能直接比较，而这两个模型肯定比提议中的弱。</span></p>
+
+  <h2 id="cost"><span class="en">Cost</span><span class="zh" lang="zh-CN">代价</span></h2>
+  <p><span class="en">Dust pays for each unit of population with a forward pass. With this release the largest population takes eight GPUs for hours where backprop takes one GPU for seconds or minutes (<a class="xref" href="#tab-cost">Table 7</a>). Two things bias the ratios. The times include evaluation, which is most of backprop's wall clock, so the ratios understate the difference in training compute. And the minimal release reruns the whole network for every draw, which the paper's own implementation avoids.</span><span class="zh" lang="zh-CN">Dust 的每一单位 population 都要付出一次前向。用这份 release，最大 population 需要 8 张 GPU 跑数小时，而 backprop 只需 1 张 GPU 跑数秒到数分钟（<a class="xref" href="#tab-cost">表 7</a>）。有两点会让比值偏移：计时包含评估，而评估占了 backprop 墙钟时间的大部分，所以比值低估了训练算力的差距；另外最小实现每次 draw 都重跑整个网络，论文自己的实现避免了这一点。</span></p>
+  <figure class="tbl" id="tab-cost">
+    <figcaption><span class="fignum"><span class="en">Table 7.</span><span class="zh" lang="zh-CN">表 7</span></span> <span class="en">Wall-clock cost, evaluation included. The last column is GPU-hours relative to backprop with AdamW at the same token budget.</span><span class="zh" lang="zh-CN">墙钟开销，含评估。最后一列是相对同一 token 预算下 backprop AdamW 的 GPU 小时倍数。</span></figcaption>
+    <div class="table-wrap"><table class=""><thead><tr><th><span class="en">Run</span><span class="zh" lang="zh-CN">运行</span></th><th class="num"><span class="en">GPUs</span><span class="zh" lang="zh-CN">GPU 数</span></th><th class="num"><span class="en">Seconds per step</span><span class="zh" lang="zh-CN">每步秒数</span></th><th class="num"><span class="en">GPU-hours</span><span class="zh" lang="zh-CN">GPU 小时</span></th><th class="num"><span class="en">Relative to backprop</span><span class="zh" lang="zh-CN">相对 backprop</span></th></tr></thead><tbody><tr class="group"><td colspan="5"><span class="en">1M tokens, 61 steps</span><span class="zh" lang="zh-CN">1M token，61 步</span></td></tr><tr><td><span class="en">Backprop (AdamW)</span><span class="zh" lang="zh-CN">Backprop（AdamW）</span></td><td class="num">1</td><td class="num">0.54</td><td class="num">0.009</td><td class="num">1</td></tr><tr><td><span class="en">Dust (SGD), 256</span><span class="zh" lang="zh-CN">Dust（SGD），256</span></td><td class="num">1</td><td class="num">5.3</td><td class="num">0.09</td><td class="num">10</td></tr><tr><td><span class="en">Dust (SGD), 1k</span><span class="zh" lang="zh-CN">Dust（SGD），1k</span></td><td class="num">1</td><td class="num">16.9</td><td class="num">0.29</td><td class="num">31</td></tr><tr><td><span class="en">Dust (SGD), 4k</span><span class="zh" lang="zh-CN">Dust（SGD），4k</span></td><td class="num">4</td><td class="num">16.8</td><td class="num">1.14</td><td class="num">125</td></tr><tr><td><span class="en">Dust (SGD), 16k</span><span class="zh" lang="zh-CN">Dust（SGD），16k</span></td><td class="num">8</td><td class="num">32.1</td><td class="num">4.35</td><td class="num">478</td></tr><tr><td><span class="en">Dust (Adam), 256</span><span class="zh" lang="zh-CN">Dust（Adam），256</span></td><td class="num">1</td><td class="num">6.7</td><td class="num">0.11</td><td class="num">12</td></tr><tr><td><span class="en">Dust (Adam), 1k</span><span class="zh" lang="zh-CN">Dust（Adam），1k</span></td><td class="num">1</td><td class="num">22.0</td><td class="num">0.37</td><td class="num">41</td></tr><tr><td><span class="en">Dust (Adam), 4k</span><span class="zh" lang="zh-CN">Dust（Adam），4k</span></td><td class="num">4</td><td class="num">21.8</td><td class="num">1.48</td><td class="num">162</td></tr><tr><td><span class="en">Dust (Adam), 16k</span><span class="zh" lang="zh-CN">Dust（Adam），16k</span></td><td class="num">8</td><td class="num">42.2</td><td class="num">5.73</td><td class="num">629</td></tr><tr class="group"><td colspan="5"><span class="en">10M tokens, 610 steps</span><span class="zh" lang="zh-CN">10M token，610 步</span></td></tr><tr><td><span class="en">Backprop (AdamW)</span><span class="zh" lang="zh-CN">Backprop（AdamW）</span></td><td class="num">1</td><td class="num">0.14</td><td class="num">0.024</td><td class="num">1</td></tr><tr><td><span class="en">Dust (SGD), 256</span><span class="zh" lang="zh-CN">Dust（SGD），256</span></td><td class="num">1</td><td class="num">4.8</td><td class="num">0.82</td><td class="num">34</td></tr><tr><td><span class="en">Dust (SGD), 1k</span><span class="zh" lang="zh-CN">Dust（SGD），1k</span></td><td class="num">1</td><td class="num">16.5</td><td class="num">2.79</td><td class="num">114</td></tr><tr><td><span class="en">Dust (SGD), 4k</span><span class="zh" lang="zh-CN">Dust（SGD），4k</span></td><td class="num">4</td><td class="num">16.3</td><td class="num">11.03</td><td class="num">453</td></tr><tr><td><span class="en">Dust (SGD), 16k</span><span class="zh" lang="zh-CN">Dust（SGD），16k</span></td><td class="num">8</td><td class="num">31.5</td><td class="num">42.69</td><td class="num">1,752</td></tr><tr><td><span class="en">Dust (Adam), 256</span><span class="zh" lang="zh-CN">Dust（Adam），256</span></td><td class="num">1</td><td class="num">6.2</td><td class="num">1.04</td><td class="num">43</td></tr><tr><td><span class="en">Dust (Adam), 1k</span><span class="zh" lang="zh-CN">Dust（Adam），1k</span></td><td class="num">1</td><td class="num">21.5</td><td class="num">3.64</td><td class="num">149</td></tr><tr><td><span class="en">Dust (Adam), 4k</span><span class="zh" lang="zh-CN">Dust（Adam），4k</span></td><td class="num">4</td><td class="num">21.3</td><td class="num">14.43</td><td class="num">592</td></tr><tr><td><span class="en">Dust (Adam), 16k</span><span class="zh" lang="zh-CN">Dust（Adam），16k</span></td><td class="num">8</td><td class="num">41.6</td><td class="num">56.43</td><td class="num">2,316</td></tr></tbody></table></div>
+  </figure>
+
+  <h2 id="critics"><span class="en">Outside criticism</span><span class="zh" lang="zh-CN">外部批评</span></h2>
+  <p><span class="en">Three public reactions to the paper, quoted as collected in the <a href="https://digg.com/ai/5zv01jcm">Digg roundup</a> of the discussion, and what our runs say about each (<a class="xref" href="#tab-critics">Table 8</a>).</span><span class="zh" lang="zh-CN">对论文的三条公开回应（引自 <a href="https://digg.com/ai/5zv01jcm">Digg 的讨论汇总</a>），以及我们的运行对每一条的说明（<a class="xref" href="#tab-critics">表 8</a>）。</span></p>
+  <figure class="tbl" id="tab-critics">
+    <figcaption><span class="fignum"><span class="en">Table 8.</span><span class="zh" lang="zh-CN">表 8</span></span> <span class="en">Criticisms and what this reproduction shows.</span><span class="zh" lang="zh-CN">批评与本次复现的对应结果。</span></figcaption>
+    <div class="table-wrap"><table class="stages"><thead><tr><th><span class="en">Who</span><span class="zh" lang="zh-CN">谁</span></th><th><span class="en">Point</span><span class="zh" lang="zh-CN">观点</span></th><th><span class="en">What our runs show</span><span class="zh" lang="zh-CN">我们的运行显示</span></th></tr></thead><tbody>
+      <tr><td><a href="https://x.com/SadhikaMalladi/status/2107233878461259883">Sadhika Malladi</a></td><td><span class="en">A FineWeb validation loss near 5 is not a meaningful amount of pretraining, and plots should use steps or GPU-hours, not tokens.</span><span class="zh" lang="zh-CN">FineWeb 验证 loss 约 5 算不上有意义的预训练量；图的横轴应该用步数或 GPU 小时，而不是 token 数。</span></td><td><span class="en">Supported. On the same 10M tokens backprop with AdamW goes below 4 (<a class="xref" href="#tab-adamw">Table 2</a>), and the GPU-hour ratios are in <a class="xref" href="#tab-cost">Table 7</a>.</span><span class="zh" lang="zh-CN">成立。同样的 10M token，backprop AdamW 能降到 4 以下（<a class="xref" href="#tab-adamw">表 2</a>）；GPU 小时的比值见 <a class="xref" href="#tab-cost">表 7</a>。</span></td></tr>
+      <tr><td><a href="https://x.com/YouJiacheng/status/2107258581083197493">You Jiacheng</a></td><td><span class="en">If backprop lacks search, continue a backprop-trained checkpoint with the zeroth-order method and see whether it is effective.</span><span class="zh" lang="zh-CN">如果 backprop 缺乏搜索，就拿 backprop 训好的 checkpoint 用零阶方法续训，看它是否有效。</span></td><td><span class="en">Tested on weaker checkpoints than proposed. Dust keeps improving them at a reduced learning rate and stays behind backprop (<a class="xref" href="#tab-cpt">Table 6</a>).</span><span class="zh" lang="zh-CN">在比提议更弱的 checkpoint 上做了检验。降低学习率后 Dust 能继续改进它们，但始终落后于 backprop（<a class="xref" href="#tab-cpt">表 6</a>）。</span></td></tr>
+      <tr><td><a href="https://x.com/wen_kaiyue/status/2107232316041142602">Kaiyue Wen</a></td><td><span class="en">Asked whether optimizing the activations with gradient descent could work.</span><span class="zh" lang="zh-CN">问能否直接用梯度下降来优化激活。</span></td><td><span class="en">Not tested here.</span><span class="zh" lang="zh-CN">这里没有检验。</span></td></tr>
+    </tbody></table></div>
+  </figure>
+
+  <h2 id="limits"><span class="en">Limits of this reproduction</span><span class="zh" lang="zh-CN">本次复现的局限</span></h2>
+  <ul class="findings">
+    <li><span class="en">One seed per Dust run, except the cell in <a class="xref" href="#tab-seeds">Table 5</a>. Backprop's three seeds differ by about 0.06 at 1M tokens and 0.08 at 10M, so differences of that size between Dust cells are not resolved.</span><span class="zh" lang="zh-CN">除 <a class="xref" href="#tab-seeds">表 5</a> 中的那一格外，每个 Dust 运行只有一个 seed。backprop 的三个 seed 在 1M token 上相差约 0.06，在 10M 上约 0.08，所以 Dust 各格之间这个量级的差别无法分辨。</span></li>
+    <li><span class="en">Dust under Adam is a reconstruction. The split of draws across blocks is our assumption; it matches the four published points at 1M tokens and has no published reference at 10M.</span><span class="zh" lang="zh-CN">Adam 版 Dust 是重建的。draw 在各层之间的分配是我们的假设；它在 1M token 上与论文公布的四个点一致，在 10M 上没有可对照的公布数值。</span></li>
+    <li><span class="en">At 10M tokens Dust's Adam settings were varied along two axes at one population only.</span><span class="zh" lang="zh-CN">10M token 上 Dust 的 Adam 设置只在一个 population 上沿两个方向调过。</span></li>
+    <li><span class="en">The largest population here is 16,384. The paper's Adam ladder at 1M tokens goes to 65,536, and its claim of ending below backprop rests on an extrapolation beyond that.</span><span class="zh" lang="zh-CN">这里的最大 population 是 16,384。论文在 1M token 的 Adam 实验做到 65,536，而它"最终低于 backprop"的说法依赖更远的外推。</span></li>
+    <li><span class="en">Continuation runs last 200 steps from two checkpoints, with one learning rate below the default for Dust.</span><span class="zh" lang="zh-CN">续训只有 200 步、两个 checkpoint，Dust 只试了一个低于默认值的学习率。</span></li>
+  </ul>
+
+  <h2 id="refs"><span class="en">References</span><span class="zh" lang="zh-CN">参考文献</span></h2>
+  <ol class="refs">
+    <li>Dahal, Mandal, Gülbahar and Vegesna (2026). <a href="https://qlabs.sh/research/dust">Dust: Pretraining Transformers Without Backpropagation</a>. <a href="https://github.com/qlabs-eng/dust">Code</a>.</li>
+    <li>Malladi et al. (2023). <a href="https://arxiv.org/abs/2305.17333">Fine-Tuning Language Models with Just Forward Passes</a>.</li>
+    <li>Sarkar et al. (2025). <a href="https://arxiv.org/abs/2511.16652">Evolution Strategies at the Hyperscale</a>.</li>
+    <li>Digg (2026). <a href="https://digg.com/ai/5zv01jcm">Dust debuts as a zeroth-order approach to transformer pretraining</a>.</li>
+  </ol>
+  <footer><span class="en">Code, the records of every run and a PDF of this report are at <a href="https://github.com/huskydoge/dust">github.com/huskydoge/dust</a>, a fork of the official release. It adds <code>dust_adam.py</code>, <code>dust_cpt.py</code>, <code>baselines/backprop_adam.py</code> and <code>prepare_cpt_data.py</code>; the official <code>dust.py</code> and <code>baselines/backprop.py</code> are unchanged.</span><span class="zh" lang="zh-CN">代码、每个运行的记录和本报告的 PDF 都在 <a href="https://github.com/huskydoge/dust">github.com/huskydoge/dust</a>，它是官方 release 的 fork。它新增了 <code>dust_adam.py</code>、<code>dust_cpt.py</code>、<code>baselines/backprop_adam.py</code> 和 <code>prepare_cpt_data.py</code>；官方的 <code>dust.py</code> 与 <code>baselines/backprop.py</code> 未改动。</span></footer>
+</section>
+</main>
+
+<script>
+window.MathJax = { tex: { inlineMath: [["\\(", "\\)"]], displayMath: [["\\[", "\\]"]] },
+  svg: { fontCache: "global" }, options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] } };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js"></script>
+<script>
+// Contents that follow the scroll: every h2, the current one highlighted.
+(function () {
+  const main = document.querySelector("main");
+  const float = document.getElementById("toc-float"), bar = document.getElementById("toc-bar");
+  const barNav = document.getElementById("toc-bar-nav"), barToggle = document.getElementById("toc-bar-toggle");
+  const barCurrent = document.getElementById("toc-bar-current");
+  const heads = Array.from(main.querySelectorAll("h2")).filter((h) => h.id);
+  heads.forEach((h) => { h.style.scrollMarginTop = "56px"; });
+  const links = new Map();
+  function list(target) {
+    const ol = document.createElement("ol");
+    for (const head of heads) {
+      const li = document.createElement("li"), a = document.createElement("a");
+      a.href = "#" + head.id;
+      a.innerHTML = head.innerHTML;
+      li.appendChild(a);
+      ol.appendChild(li);
+      (links.get(head) || links.set(head, []).get(head)).push(a);
+    }
+    target.appendChild(ol);
+  }
+  const label = document.createElement("div");
+  label.className = "label";
+  label.innerHTML = '<span class="en">Contents</span><span class="zh" lang="zh-CN">目录</span>';
+  float.appendChild(label);
+  list(float);
+  list(barNav);
+  float.hidden = false;
+  document.addEventListener("click", (event) => {
+    const a = event.target.closest(".toc-bar nav a");
+    if (!a) return;
+    barNav.hidden = true;
+    barToggle.setAttribute("aria-expanded", "false");
+  });
+  barToggle.addEventListener("click", () => {
+    barNav.hidden = !barNav.hidden;
+    barToggle.setAttribute("aria-expanded", String(!barNav.hidden));
+  });
+  const header = document.querySelector("main > header");
+  let ticking = false;
+  function update() {
+    ticking = false;
+    let current = null;
+    for (const h of heads) { if (h.getBoundingClientRect().top <= 80) current = h; else break; }
+    for (const [h, anchors] of links) anchors.forEach((a) => a.classList.toggle("active", h === current));
+    barCurrent.innerHTML = current ? current.innerHTML : "";
+    bar.hidden = header.getBoundingClientRect().bottom > 0;
+  }
+  window.addEventListener("scroll", () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+  window.addEventListener("resize", update);
+  update();
+
+  // Language switch: the charts rebuild when data-lang changes.
+  const root = document.documentElement;
+  function syncLang() {
+    const lang = root.dataset.lang === "zh" ? "zh" : "en";
+    root.lang = lang === "zh" ? "zh-CN" : "en";
+    document.querySelectorAll("[data-set-lang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.setLang === lang)));
+    update();
+  }
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-set-lang]");
+    if (!button || root.dataset.lang === button.dataset.setLang) return;
+    root.dataset.lang = button.dataset.setLang;
+    try { localStorage.setItem("dust-report-lang", button.dataset.setLang); } catch (e) { /* not remembered */ }
+    syncLang();
+  });
+  syncLang();
+})();
+</script>
+<script id="data" type="application/json">{"ladder":{"1m":[{"key":"sgd-ours","label":"Dust (SGD), ours","label_zh":"Dust（SGD），我们","color":"--s3","dash":[],"info":{"title":"Dust (SGD), our runs","rows":[["Optimizer","SGD with momentum, constant learning rate (official release)"],["Seeds","one (42)"]]},"info_zh":{"title":"Dust（SGD），我们的运行","rows":[["优化器","带动量的 SGD，恒定学习率（官方 release）"],["seed","1 个（42）"]]},"points":[{"x":256,"y":6.0537},{"x":1024,"y":5.9329},{"x":4096,"y":5.8785},{"x":16384,"y":5.8621}],"dots":true},{"key":"sgd-paper","label":"Dust (SGD), paper","label_zh":"Dust（SGD），论文","color":"--s3","dash":[5,4],"info":{"title":"Dust (SGD), published","rows":[["Source","Data points embedded in the paper's figures"],["Seeds","three (SGD) or five (Adam)"]]},"info_zh":{"title":"Dust（SGD），论文数值","rows":[["来源","论文图中嵌入的数据点"],["seed","3 个（SGD）或 5 个（Adam）"]]},"points":[{"x":256,"y":6.067},{"x":1024,"y":5.934},{"x":4096,"y":5.911},{"x":16384,"y":5.916}],"dots":true},{"key":"adam-ours","label":"Dust (Adam), ours","label_zh":"Dust（Adam），我们","color":"--a3","dash":[],"info":{"title":"Dust (Adam), our runs","rows":[["Optimizer","Adam, settings of the paper's Appendix F (our reconstruction)"],["Seeds","one (42)"]]},"info_zh":{"title":"Dust（Adam），我们的运行","rows":[["优化器","Adam，论文附录 F 的设置（我们的重建）"],["seed","1 个（42）"]]},"points":[{"x":256,"y":5.8434},{"x":1024,"y":5.6026},{"x":4096,"y":5.4988},{"x":16384,"y":5.3821}],"dots":true},{"key":"adam-paper","label":"Dust (Adam), paper","label_zh":"Dust（Adam），论文","color":"--a3","dash":[5,4],"info":{"title":"Dust (Adam), published","rows":[["Source","Data points embedded in the paper's figures"],["Seeds","three (SGD) or five (Adam)"]]},"info_zh":{"title":"Dust（Adam），论文数值","rows":[["来源","论文图中嵌入的数据点"],["seed","3 个（SGD）或 5 个（Adam）"]]},"points":[{"x":256,"y":5.836},{"x":1024,"y":5.594},{"x":4096,"y":5.5},{"x":16384,"y":5.402}],"dots":true},{"key":"bp-sgd","label":"Backprop (SGD)","label_zh":"Backprop (SGD)","color":"--bp-sgd","dash":[2,3],"info":{"title":"Backprop (SGD)","rows":[["Method","Backpropagation, same model and data"],["Optimizer","SGD with momentum, constant learning rate (official release)"],["Test loss","5.959 (mean of 3 seeds)"],["Run","<code>bp-sgd-1m-s42<\/code>"]]},"info_zh":{"title":"Backprop (SGD)","rows":[["方法","反向传播，相同模型与数据"],["优化器","带动量的 SGD，恒定学习率（官方 release）"],["test loss","5.959（3 个 seed 的均值）"],["运行","<code>bp-sgd-1m-s42<\/code>"]]},"points":[{"x":200,"y":5.9592},{"x":21000,"y":5.9592}]},{"key":"bp-adamw","label":"Backprop (AdamW)","label_zh":"Backprop (AdamW)","color":"--bp-adam","dash":[],"info":{"title":"Backprop (AdamW)","rows":[["Method","Backpropagation, same model and data"],["Optimizer","AdamW, matrices 0.002, embeddings 0.3, scalars 0.2, no weight decay"],["Test loss","5.364 (mean of 3 seeds)"],["Run","<code>bp-adamw-1m-lr0.002-s42<\/code>"]]},"info_zh":{"title":"Backprop (AdamW)","rows":[["方法","反向传播，相同模型与数据"],["优化器","AdamW，矩阵 0.002、embedding 0.3、标量 0.2，无 weight decay"],["test loss","5.364（3 个 seed 的均值）"],["运行","<code>bp-adamw-1m-lr0.002-s42<\/code>"]]},"points":[{"x":200,"y":5.3638},{"x":21000,"y":5.3638}]}],"10m":[{"key":"sgd-ours","label":"Dust (SGD), ours","label_zh":"Dust（SGD），我们","color":"--s3","dash":[],"info":{"title":"Dust (SGD), our runs","rows":[["Optimizer","SGD with momentum, constant learning rate (official release)"],["Seeds","one (42)"]]},"info_zh":{"title":"Dust（SGD），我们的运行","rows":[["优化器","带动量的 SGD，恒定学习率（官方 release）"],["seed","1 个（42）"]]},"points":[{"x":256,"y":5.2299},{"x":1024,"y":5.1182},{"x":4096,"y":5.0698},{"x":16384,"y":5.0474}],"dots":true},{"key":"sgd-paper","label":"Dust (SGD), paper","label_zh":"Dust（SGD），论文","color":"--s3","dash":[5,4],"info":{"title":"Dust (SGD), published","rows":[["Source","Data points embedded in the paper's figures"],["Seeds","three (SGD) or five (Adam)"]]},"info_zh":{"title":"Dust（SGD），论文数值","rows":[["来源","论文图中嵌入的数据点"],["seed","3 个（SGD）或 5 个（Adam）"]]},"points":[{"x":256,"y":5.231},{"x":1024,"y":5.111},{"x":4096,"y":5.072},{"x":16384,"y":5.049}],"dots":true},{"key":"adam-ours","label":"Dust (Adam), ours","label_zh":"Dust（Adam），我们","color":"--a3","dash":[],"info":{"title":"Dust (Adam), our runs","rows":[["Optimizer","Adam, settings of the paper's Appendix F (our reconstruction)"],["Seeds","one (42)"]]},"info_zh":{"title":"Dust（Adam），我们的运行","rows":[["优化器","Adam，论文附录 F 的设置（我们的重建）"],["seed","1 个（42）"]]},"points":[{"x":256,"y":5.1713},{"x":1024,"y":4.8539},{"x":4096,"y":4.5605},{"x":16384,"y":4.4358}],"dots":true},{"key":"bp-sgd","label":"Backprop (SGD)","label_zh":"Backprop (SGD)","color":"--bp-sgd","dash":[2,3],"info":{"title":"Backprop (SGD)","rows":[["Method","Backpropagation, same model and data"],["Optimizer","SGD with momentum, constant learning rate (official release)"],["Test loss","4.989 (mean of 3 seeds)"],["Run","<code>bp-sgd-10m-s42<\/code>"]]},"info_zh":{"title":"Backprop (SGD)","rows":[["方法","反向传播，相同模型与数据"],["优化器","带动量的 SGD，恒定学习率（官方 release）"],["test loss","4.989（3 个 seed 的均值）"],["运行","<code>bp-sgd-10m-s42<\/code>"]]},"points":[{"x":200,"y":4.9885},{"x":21000,"y":4.9885}]},{"key":"bp-adamw","label":"Backprop (AdamW)","label_zh":"Backprop (AdamW)","color":"--bp-adam","dash":[],"info":{"title":"Backprop (AdamW)","rows":[["Method","Backpropagation, same model and data"],["Optimizer","AdamW, matrices 0.002, embeddings 0.3, scalars 0.2, no weight decay"],["Test loss","3.939 (mean of 3 seeds)"],["Run","<code>bp-adamw-10m-lr0.002-s42<\/code>"]]},"info_zh":{"title":"Backprop (AdamW)","rows":[["方法","反向传播，相同模型与数据"],["优化器","AdamW，矩阵 0.002、embedding 0.3、标量 0.2，无 weight decay"],["test loss","3.939（3 个 seed 的均值）"],["运行","<code>bp-adamw-10m-lr0.002-s42<\/code>"]]},"points":[{"x":200,"y":3.9395},{"x":21000,"y":3.9395}]}]},"curves":[{"key":"bp-sgd","label":"Backprop (SGD)","label_zh":"Backprop (SGD)","color":"--bp-sgd","dash":[2,3],"info":{"title":"Backprop (SGD)","rows":[["Method","Backpropagation, same model and data"],["Optimizer","SGD with momentum, constant learning rate (official release)"],["Test loss","4.989 (mean of 3 seeds)"],["Run","<code>bp-sgd-10m-s42<\/code>"]]},"info_zh":{"title":"Backprop (SGD)","rows":[["方法","反向传播，相同模型与数据"],["优化器","带动量的 SGD，恒定学习率（官方 release）"],["test loss","4.989（3 个 seed 的均值）"],["运行","<code>bp-sgd-10m-s42<\/code>"]]},"points":[{"x":0,"y":8.3188},{"x":1,"y":8.1595},{"x":10,"y":7.1815},{"x":20,"y":6.7773},{"x":30,"y":6.4974},{"x":40,"y":6.2658},{"x":50,"y":6.0684},{"x":60,"y":5.9289},{"x":70,"y":5.7989},{"x":80,"y":5.7052},{"x":90,"y":5.622},{"x":100,"y":5.5576},{"x":110,"y":5.4989},{"x":120,"y":5.4491},{"x":130,"y":5.4119},{"x":140,"y":5.3837},{"x":150,"y":5.3583},{"x":160,"y":5.3376},{"x":170,"y":5.3158},{"x":180,"y":5.2947},{"x":190,"y":5.2767},{"x":200,"y":5.2632},{"x":210,"y":5.2509},{"x":220,"y":5.2347},{"x":230,"y":5.222},{"x":240,"y":5.2131},{"x":250,"y":5.2061},{"x":260,"y":5.1977},{"x":270,"y":5.1923},{"x":280,"y":5.1829},{"x":290,"y":5.1776},{"x":300,"y":5.1682},{"x":310,"y":5.1647},{"x":320,"y":5.161},{"x":330,"y":5.1504},{"x":340,"y":5.1443},{"x":350,"y":5.1351},{"x":360,"y":5.1313},{"x":370,"y":5.1237},{"x":380,"y":5.1199},{"x":390,"y":5.1163},{"x":400,"y":5.1112},{"x":410,"y":5.1053},{"x":420,"y":5.1008},{"x":430,"y":5.0949},{"x":440,"y":5.0914},{"x":450,"y":5.0889},{"x":460,"y":5.0824},{"x":470,"y":5.0779},{"x":480,"y":5.0717},{"x":490,"y":5.0648},{"x":500,"y":5.063},{"x":510,"y":5.0536},{"x":520,"y":5.0582},{"x":530,"y":5.0506},{"x":540,"y":5.0443},{"x":550,"y":5.0373},{"x":560,"y":5.0372},{"x":570,"y":5.0365},{"x":580,"y":5.0301},{"x":590,"y":5.0204},{"x":600,"y":5.0125},{"x":610,"y":5.0072}]},{"key":"bp-adamw","label":"Backprop (AdamW)","label_zh":"Backprop (AdamW)","color":"--bp-adam","dash":[],"info":{"title":"Backprop (AdamW)","rows":[["Method","Backpropagation, same model and data"],["Optimizer","AdamW, matrices 0.002, embeddings 0.3, scalars 0.2, no weight decay"],["Test loss","3.939 (mean of 3 seeds)"],["Run","<code>bp-adamw-10m-lr0.002-s42<\/code>"]]},"info_zh":{"title":"Backprop (AdamW)","rows":[["方法","反向传播，相同模型与数据"],["优化器","AdamW，矩阵 0.002、embedding 0.3、标量 0.2，无 weight decay"],["test loss","3.939（3 个 seed 的均值）"],["运行","<code>bp-adamw-10m-lr0.002-s42<\/code>"]]},"points":[{"x":0,"y":8.3188},{"x":1,"y":8.2361},{"x":10,"y":6.9759},{"x":20,"y":6.2366},{"x":30,"y":5.8226},{"x":40,"y":5.5979},{"x":50,"y":5.4581},{"x":60,"y":5.3805},{"x":70,"y":5.2887},{"x":80,"y":5.2376},{"x":90,"y":5.1742},{"x":100,"y":5.1087},{"x":110,"y":5.0551},{"x":120,"y":5.0046},{"x":130,"y":4.9605},{"x":140,"y":4.9281},{"x":150,"y":4.8813},{"x":160,"y":4.844},{"x":170,"y":4.8096},{"x":180,"y":4.7763},{"x":190,"y":4.7482},{"x":200,"y":4.7136},{"x":210,"y":4.6894},{"x":220,"y":4.6622},{"x":230,"y":4.6369},{"x":240,"y":4.6133},{"x":250,"y":4.5981},{"x":260,"y":4.5709},{"x":270,"y":4.5476},{"x":280,"y":4.534},{"x":290,"y":4.5132},{"x":300,"y":4.4937},{"x":310,"y":4.4806},{"x":320,"y":4.4582},{"x":330,"y":4.4321},{"x":340,"y":4.4043},{"x":350,"y":4.3872},{"x":360,"y":4.3621},{"x":370,"y":4.3412},{"x":380,"y":4.3223},{"x":390,"y":4.299},{"x":400,"y":4.2708},{"x":410,"y":4.2584},{"x":420,"y":4.2345},{"x":430,"y":4.2098},{"x":440,"y":4.1995},{"x":450,"y":4.1829},{"x":460,"y":4.1614},{"x":470,"y":4.1569},{"x":480,"y":4.1344},{"x":490,"y":4.1259},{"x":500,"y":4.107},{"x":510,"y":4.0993},{"x":520,"y":4.0849},{"x":530,"y":4.0749},{"x":540,"y":4.0506},{"x":550,"y":4.0398},{"x":560,"y":4.0327},{"x":570,"y":4.0289},{"x":580,"y":4.0076},{"x":590,"y":3.9996},{"x":600,"y":3.9831},{"x":610,"y":3.9831}]},{"key":"sgd256","label":"Dust (SGD) 256","label_zh":"Dust (SGD) 256","color":"--s1","dash":[],"info":{"title":"Dust (SGD), population 256","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","SGD with momentum, constant learning rate (official release)"],["Population","256 direct draws per step on 1 GPU"],["Test loss","5.230"],["Run","<code>dust-sgd-10m-p256-s42<\/code>"]]},"info_zh":{"title":"Dust (SGD), population 256","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","带动量的 SGD，恒定学习率（官方 release）"],["population","每步 256 次直接 draw，1 张 GPU"],["test loss","5.230"],["运行","<code>dust-sgd-10m-p256-s42<\/code>"]]},"points":[{"x":0,"y":8.3188},{"x":1,"y":8.1981},{"x":10,"y":7.2049},{"x":20,"y":6.8528},{"x":30,"y":6.6015},{"x":40,"y":6.4173},{"x":50,"y":6.256},{"x":60,"y":6.1444},{"x":70,"y":6.0396},{"x":80,"y":5.9655},{"x":90,"y":5.9057},{"x":100,"y":5.8335},{"x":110,"y":5.7813},{"x":120,"y":5.7349},{"x":130,"y":5.6959},{"x":140,"y":5.6656},{"x":150,"y":5.6283},{"x":160,"y":5.6019},{"x":170,"y":5.5741},{"x":180,"y":5.5518},{"x":190,"y":5.5263},{"x":200,"y":5.5044},{"x":210,"y":5.4961},{"x":220,"y":5.4692},{"x":230,"y":5.4549},{"x":240,"y":5.4375},{"x":250,"y":5.4277},{"x":260,"y":5.4162},{"x":270,"y":5.4074},{"x":280,"y":5.3985},{"x":290,"y":5.3878},{"x":300,"y":5.381},{"x":310,"y":5.3737},{"x":320,"y":5.3684},{"x":330,"y":5.3608},{"x":340,"y":5.359},{"x":350,"y":5.3495},{"x":360,"y":5.3394},{"x":370,"y":5.3342},{"x":380,"y":5.3297},{"x":390,"y":5.3223},{"x":400,"y":5.3161},{"x":410,"y":5.3091},{"x":420,"y":5.3046},{"x":430,"y":5.3009},{"x":440,"y":5.2952},{"x":450,"y":5.2912},{"x":460,"y":5.2881},{"x":470,"y":5.2876},{"x":480,"y":5.2815},{"x":490,"y":5.276},{"x":500,"y":5.2746},{"x":510,"y":5.272},{"x":520,"y":5.2783},{"x":530,"y":5.2666},{"x":540,"y":5.2588},{"x":550,"y":5.2572},{"x":560,"y":5.256},{"x":570,"y":5.2595},{"x":580,"y":5.2554},{"x":590,"y":5.2487},{"x":600,"y":5.2423},{"x":610,"y":5.2415}]},{"key":"sgd1024","label":"Dust (SGD) 1k","label_zh":"Dust (SGD) 1k","color":"--s2","dash":[],"info":{"title":"Dust (SGD), population 1,024","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","SGD with momentum, constant learning rate (official release)"],["Population","1,024 direct draws per step on 1 GPU"],["Test loss","5.118"],["Run","<code>dust-sgd-10m-p1024-s42<\/code>"]]},"info_zh":{"title":"Dust (SGD), population 1,024","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","带动量的 SGD，恒定学习率（官方 release）"],["population","每步 1,024 次直接 draw，1 张 GPU"],["test loss","5.118"],["运行","<code>dust-sgd-10m-p1024-s42<\/code>"]]},"points":[{"x":0,"y":8.3188},{"x":1,"y":8.1452},{"x":10,"y":7.2022},{"x":20,"y":7.0191},{"x":30,"y":6.5664},{"x":40,"y":6.2947},{"x":50,"y":6.1261},{"x":60,"y":5.9638},{"x":70,"y":5.8492},{"x":80,"y":5.7488},{"x":90,"y":5.6751},{"x":100,"y":5.6145},{"x":110,"y":5.5518},{"x":120,"y":5.5045},{"x":130,"y":5.471},{"x":140,"y":5.4444},{"x":150,"y":5.4175},{"x":160,"y":5.3937},{"x":170,"y":5.3726},{"x":180,"y":5.3529},{"x":190,"y":5.335},{"x":200,"y":5.3177},{"x":210,"y":5.3072},{"x":220,"y":5.2932},{"x":230,"y":5.2799},{"x":240,"y":5.2737},{"x":250,"y":5.2654},{"x":260,"y":5.2602},{"x":270,"y":5.2508},{"x":280,"y":5.2441},{"x":290,"y":5.2365},{"x":300,"y":5.2327},{"x":310,"y":5.2272},{"x":320,"y":5.2259},{"x":330,"y":5.2161},{"x":340,"y":5.2113},{"x":350,"y":5.2044},{"x":360,"y":5.2039},{"x":370,"y":5.194},{"x":380,"y":5.1936},{"x":390,"y":5.1885},{"x":400,"y":5.1852},{"x":410,"y":5.1816},{"x":420,"y":5.18},{"x":430,"y":5.1763},{"x":440,"y":5.1726},{"x":450,"y":5.1716},{"x":460,"y":5.1676},{"x":470,"y":5.1672},{"x":480,"y":5.1627},{"x":490,"y":5.1589},{"x":500,"y":5.1577},{"x":510,"y":5.1527},{"x":520,"y":5.1579},{"x":530,"y":5.1534},{"x":540,"y":5.1501},{"x":550,"y":5.1433},{"x":560,"y":5.1457},{"x":570,"y":5.1486},{"x":580,"y":5.144},{"x":590,"y":5.1386},{"x":600,"y":5.1327},{"x":610,"y":5.1301}]},{"key":"sgd4096","label":"Dust (SGD) 4k","label_zh":"Dust (SGD) 4k","color":"--s3","dash":[],"info":{"title":"Dust (SGD), population 4,096","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","SGD with momentum, constant learning rate (official release)"],["Population","4,096 direct draws per step on 4 GPUs"],["Test loss","5.070"],["Run","<code>dust-sgd-10m-p4096-s42<\/code>"]]},"info_zh":{"title":"Dust (SGD), population 4,096","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","带动量的 SGD，恒定学习率（官方 release）"],["population","每步 4,096 次直接 draw，4 张 GPU"],["test loss","5.070"],["运行","<code>dust-sgd-10m-p4096-s42<\/code>"]]},"points":[{"x":0,"y":8.3188},{"x":1,"y":8.1449},{"x":10,"y":7.1874},{"x":20,"y":6.8046},{"x":30,"y":6.4683},{"x":40,"y":6.2246},{"x":50,"y":6.0392},{"x":60,"y":5.9173},{"x":70,"y":5.7855},{"x":80,"y":5.6939},{"x":90,"y":5.6307},{"x":100,"y":5.572},{"x":110,"y":5.5067},{"x":120,"y":5.46},{"x":130,"y":5.4256},{"x":140,"y":5.4011},{"x":150,"y":5.3755},{"x":160,"y":5.3505},{"x":170,"y":5.3321},{"x":180,"y":5.3114},{"x":190,"y":5.2955},{"x":200,"y":5.2793},{"x":210,"y":5.2699},{"x":220,"y":5.2568},{"x":230,"y":5.2448},{"x":240,"y":5.2398},{"x":250,"y":5.2293},{"x":260,"y":5.2234},{"x":270,"y":5.2145},{"x":280,"y":5.2093},{"x":290,"y":5.2011},{"x":300,"y":5.1959},{"x":310,"y":5.1892},{"x":320,"y":5.1905},{"x":330,"y":5.18},{"x":340,"y":5.1749},{"x":350,"y":5.1658},{"x":360,"y":5.1647},{"x":370,"y":5.156},{"x":380,"y":5.1547},{"x":390,"y":5.1513},{"x":400,"y":5.1484},{"x":410,"y":5.1428},{"x":420,"y":5.1399},{"x":430,"y":5.1378},{"x":440,"y":5.1336},{"x":450,"y":5.1319},{"x":460,"y":5.1287},{"x":470,"y":5.1269},{"x":480,"y":5.122},{"x":490,"y":5.1177},{"x":500,"y":5.1164},{"x":510,"y":5.1074},{"x":520,"y":5.1141},{"x":530,"y":5.1131},{"x":540,"y":5.1085},{"x":550,"y":5.1026},{"x":560,"y":5.1023},{"x":570,"y":5.1034},{"x":580,"y":5.0987},{"x":590,"y":5.0915},{"x":600,"y":5.0863},{"x":610,"y":5.083}]},{"key":"sgd16384","label":"Dust (SGD) 16k","label_zh":"Dust (SGD) 16k","color":"--s4","dash":[],"info":{"title":"Dust (SGD), population 16,384","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","SGD with momentum, constant learning rate (official release)"],["Population","16,384 direct draws per step on 8 GPUs"],["Test loss","5.047"],["Run","<code>dust-sgd-10m-p16384-s42<\/code>"]]},"info_zh":{"title":"Dust (SGD), population 16,384","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","带动量的 SGD，恒定学习率（官方 release）"],["population","每步 16,384 次直接 draw，8 张 GPU"],["test loss","5.047"],["运行","<code>dust-sgd-10m-p16384-s42<\/code>"]]},"points":[{"x":0,"y":8.3188},{"x":1,"y":8.1449},{"x":10,"y":7.2429},{"x":20,"y":6.86},{"x":30,"y":6.5043},{"x":40,"y":6.2477},{"x":50,"y":6.0789},{"x":60,"y":5.9332},{"x":70,"y":5.8019},{"x":80,"y":5.6982},{"x":90,"y":5.6201},{"x":100,"y":5.5595},{"x":110,"y":5.502},{"x":120,"y":5.4543},{"x":130,"y":5.4162},{"x":140,"y":5.3972},{"x":150,"y":5.3685},{"x":160,"y":5.346},{"x":170,"y":5.3237},{"x":180,"y":5.3016},{"x":190,"y":5.2853},{"x":200,"y":5.2697},{"x":210,"y":5.2598},{"x":220,"y":5.2453},{"x":230,"y":5.2337},{"x":240,"y":5.2263},{"x":250,"y":5.2185},{"x":260,"y":5.2112},{"x":270,"y":5.2043},{"x":280,"y":5.199},{"x":290,"y":5.1904},{"x":300,"y":5.1839},{"x":310,"y":5.1795},{"x":320,"y":5.1807},{"x":330,"y":5.1682},{"x":340,"y":5.1617},{"x":350,"y":5.1529},{"x":360,"y":5.1524},{"x":370,"y":5.1438},{"x":380,"y":5.1421},{"x":390,"y":5.1394},{"x":400,"y":5.1353},{"x":410,"y":5.1304},{"x":420,"y":5.1275},{"x":430,"y":5.124},{"x":440,"y":5.1203},{"x":450,"y":5.1189},{"x":460,"y":5.1139},{"x":470,"y":5.1125},{"x":480,"y":5.1062},{"x":490,"y":5.0998},{"x":500,"y":5.0992},{"x":510,"y":5.0908},{"x":520,"y":5.097},{"x":530,"y":5.0942},{"x":540,"y":5.0895},{"x":550,"y":5.0839},{"x":560,"y":5.084},{"x":570,"y":5.0834},{"x":580,"y":5.0803},{"x":590,"y":5.0708},{"x":600,"y":5.0647},{"x":610,"y":5.0613}]},{"key":"adam256","label":"Dust (Adam) 256","label_zh":"Dust (Adam) 256","color":"--a1","dash":[],"info":{"title":"Dust (Adam), population 256","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","Adam, settings of the paper's Appendix F (our reconstruction)"],["Population","256 direct draws per step on 1 GPU"],["Test loss","5.171"],["Run","<code>dust-adam-10m-p256-s42<\/code>"]]},"info_zh":{"title":"Dust (Adam), population 256","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","Adam，论文附录 F 的设置（我们的重建）"],["population","每步 256 次直接 draw，1 张 GPU"],["test loss","5.171"],["运行","<code>dust-adam-10m-p256-s42<\/code>"]]},"points":[{"x":0,"y":8.3188},{"x":1,"y":8.1349},{"x":10,"y":7.144},{"x":20,"y":7.1244},{"x":30,"y":7.0349},{"x":40,"y":6.8551},{"x":50,"y":6.6416},{"x":60,"y":6.4389},{"x":70,"y":6.3422},{"x":80,"y":6.287},{"x":90,"y":6.2484},{"x":100,"y":6.1824},{"x":110,"y":6.1309},{"x":120,"y":6.0912},{"x":130,"y":6.0387},{"x":140,"y":5.9882},{"x":150,"y":5.9128},{"x":160,"y":5.8431},{"x":170,"y":5.78},{"x":180,"y":5.713},{"x":190,"y":5.6529},{"x":200,"y":5.6011},{"x":210,"y":5.5628},{"x":220,"y":5.5205},{"x":230,"y":5.4881},{"x":240,"y":5.4559},{"x":250,"y":5.433},{"x":260,"y":5.4091},{"x":270,"y":5.3947},{"x":280,"y":5.3743},{"x":290,"y":5.3583},{"x":300,"y":5.3461},{"x":310,"y":5.3371},{"x":320,"y":5.3232},{"x":330,"y":5.3119},{"x":340,"y":5.3001},{"x":350,"y":5.2887},{"x":360,"y":5.2823},{"x":370,"y":5.2804},{"x":380,"y":5.2728},{"x":390,"y":5.2658},{"x":400,"y":5.2527},{"x":410,"y":5.252},{"x":420,"y":5.2471},{"x":430,"y":5.2417},{"x":440,"y":5.2351},{"x":450,"y":5.2307},{"x":460,"y":5.2276},{"x":470,"y":5.2266},{"x":480,"y":5.2215},{"x":490,"y":5.2164},{"x":500,"y":5.2101},{"x":510,"y":5.2038},{"x":520,"y":5.2098},{"x":530,"y":5.2062},{"x":540,"y":5.1967},{"x":550,"y":5.1975},{"x":560,"y":5.1987},{"x":570,"y":5.1991},{"x":580,"y":5.1953},{"x":590,"y":5.1854},{"x":600,"y":5.182},{"x":610,"y":5.1808}]},{"key":"adam1024","label":"Dust (Adam) 1k","label_zh":"Dust (Adam) 1k","color":"--a2","dash":[],"info":{"title":"Dust (Adam), population 1,024","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","Adam, settings of the paper's Appendix F (our reconstruction)"],["Population","1,024 direct draws per step on 1 GPU"],["Test loss","4.854"],["Run","<code>dust-adam-10m-p1024-s42<\/code>"]]},"info_zh":{"title":"Dust (Adam), population 1,024","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","Adam，论文附录 F 的设置（我们的重建）"],["population","每步 1,024 次直接 draw，1 张 GPU"],["test loss","4.854"],["运行","<code>dust-adam-10m-p1024-s42<\/code>"]]},"points":[{"x":0,"y":8.3188},{"x":1,"y":8.1607},{"x":10,"y":7.0354},{"x":20,"y":6.4123},{"x":30,"y":6.0794},{"x":40,"y":5.8686},{"x":50,"y":5.7067},{"x":60,"y":5.6079},{"x":70,"y":5.5107},{"x":80,"y":5.4556},{"x":90,"y":5.4138},{"x":100,"y":5.365},{"x":110,"y":5.3361},{"x":120,"y":5.3096},{"x":130,"y":5.2896},{"x":140,"y":5.277},{"x":150,"y":5.249},{"x":160,"y":5.2334},{"x":170,"y":5.2223},{"x":180,"y":5.2043},{"x":190,"y":5.1929},{"x":200,"y":5.1768},{"x":210,"y":5.1647},{"x":220,"y":5.1514},{"x":230,"y":5.1399},{"x":240,"y":5.1291},{"x":250,"y":5.1227},{"x":260,"y":5.113},{"x":270,"y":5.102},{"x":280,"y":5.0892},{"x":290,"y":5.0843},{"x":300,"y":5.0734},{"x":310,"y":5.0659},{"x":320,"y":5.059},{"x":330,"y":5.0483},{"x":340,"y":5.0382},{"x":350,"y":5.0288},{"x":360,"y":5.0234},{"x":370,"y":5.0236},{"x":380,"y":5.0136},{"x":390,"y":5.0088},{"x":400,"y":4.9944},{"x":410,"y":4.9932},{"x":420,"y":4.9863},{"x":430,"y":5.0032},{"x":440,"y":4.9782},{"x":450,"y":4.9666},{"x":460,"y":4.9565},{"x":470,"y":4.9525},{"x":480,"y":4.9438},{"x":490,"y":4.9376},{"x":500,"y":4.9277},{"x":510,"y":4.9164},{"x":520,"y":4.9216},{"x":530,"y":4.9118},{"x":540,"y":4.9018},{"x":550,"y":4.896},{"x":560,"y":4.8926},{"x":570,"y":4.8924},{"x":580,"y":4.883},{"x":590,"y":4.8776},{"x":600,"y":4.8684},{"x":610,"y":4.8665}]},{"key":"adam4096","label":"Dust (Adam) 4k","label_zh":"Dust (Adam) 4k","color":"--a3","dash":[],"info":{"title":"Dust (Adam), population 4,096","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","Adam, settings of the paper's Appendix F (our reconstruction)"],["Population","4,096 direct draws per step on 4 GPUs"],["Test loss","4.560"],["Run","<code>dust-adam-10m-p4096-s42<\/code>"]]},"info_zh":{"title":"Dust (Adam), population 4,096","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","Adam，论文附录 F 的设置（我们的重建）"],["population","每步 4,096 次直接 draw，4 张 GPU"],["test loss","4.560"],["运行","<code>dust-adam-10m-p4096-s42<\/code>"]]},"points":[{"x":0,"y":8.3188},{"x":1,"y":8.1969},{"x":10,"y":6.8978},{"x":20,"y":6.2787},{"x":30,"y":5.9564},{"x":40,"y":5.7466},{"x":50,"y":5.5794},{"x":60,"y":5.4828},{"x":70,"y":5.391},{"x":80,"y":5.3457},{"x":90,"y":5.2886},{"x":100,"y":5.2361},{"x":110,"y":5.1867},{"x":120,"y":5.1571},{"x":130,"y":5.1287},{"x":140,"y":5.1016},{"x":150,"y":5.0675},{"x":160,"y":5.0417},{"x":170,"y":5.0204},{"x":180,"y":4.9962},{"x":190,"y":4.9764},{"x":200,"y":4.9564},{"x":210,"y":4.9337},{"x":220,"y":4.9181},{"x":230,"y":4.9044},{"x":240,"y":4.8887},{"x":250,"y":4.8775},{"x":260,"y":4.8666},{"x":270,"y":4.8402},{"x":280,"y":4.8385},{"x":290,"y":4.8222},{"x":300,"y":4.8128},{"x":310,"y":4.805},{"x":320,"y":4.7912},{"x":330,"y":4.775},{"x":340,"y":4.7642},{"x":350,"y":4.7505},{"x":360,"y":4.7404},{"x":370,"y":4.7446},{"x":380,"y":4.7363},{"x":390,"y":4.7232},{"x":400,"y":4.7003},{"x":410,"y":4.7001},{"x":420,"y":4.6947},{"x":430,"y":4.6816},{"x":440,"y":4.6781},{"x":450,"y":4.6715},{"x":460,"y":4.6653},{"x":470,"y":4.6599},{"x":480,"y":4.6521},{"x":490,"y":4.6483},{"x":500,"y":4.6344},{"x":510,"y":4.6285},{"x":520,"y":4.6325},{"x":530,"y":4.6253},{"x":540,"y":4.6101},{"x":550,"y":4.607},{"x":560,"y":4.6088},{"x":570,"y":4.6024},{"x":580,"y":4.5942},{"x":590,"y":4.5869},{"x":600,"y":4.5811},{"x":610,"y":4.5753}]},{"key":"adam16384","label":"Dust (Adam) 16k","label_zh":"Dust (Adam) 16k","color":"--a4","dash":[],"info":{"title":"Dust (Adam), population 16,384","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","Adam, settings of the paper's Appendix F (our reconstruction)"],["Population","16,384 direct draws per step on 8 GPUs"],["Test loss","4.436"],["Run","<code>dust-adam-10m-p16384-s42<\/code>"]]},"info_zh":{"title":"Dust (Adam), population 16,384","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","Adam，论文附录 F 的设置（我们的重建）"],["population","每步 16,384 次直接 draw，8 张 GPU"],["test loss","4.436"],["运行","<code>dust-adam-10m-p16384-s42<\/code>"]]},"points":[{"x":0,"y":8.3188},{"x":1,"y":8.2166},{"x":10,"y":6.9212},{"x":20,"y":6.2193},{"x":30,"y":5.8745},{"x":40,"y":5.6444},{"x":50,"y":5.4947},{"x":60,"y":5.3978},{"x":70,"y":5.3084},{"x":80,"y":5.2669},{"x":90,"y":5.2025},{"x":100,"y":5.1456},{"x":110,"y":5.0928},{"x":120,"y":5.0637},{"x":130,"y":5.0291},{"x":140,"y":5.0033},{"x":150,"y":4.962},{"x":160,"y":4.936},{"x":170,"y":4.9189},{"x":180,"y":4.8866},{"x":190,"y":4.8658},{"x":200,"y":4.8562},{"x":210,"y":4.8277},{"x":220,"y":4.8088},{"x":230,"y":4.7907},{"x":240,"y":4.7691},{"x":250,"y":4.7639},{"x":260,"y":4.7525},{"x":270,"y":4.7242},{"x":280,"y":4.7184},{"x":290,"y":4.7027},{"x":300,"y":4.6902},{"x":310,"y":4.6866},{"x":320,"y":4.6748},{"x":330,"y":4.6589},{"x":340,"y":4.6473},{"x":350,"y":4.6356},{"x":360,"y":4.622},{"x":370,"y":4.6201},{"x":380,"y":4.6094},{"x":390,"y":4.6037},{"x":400,"y":4.5836},{"x":410,"y":4.585},{"x":420,"y":4.5753},{"x":430,"y":4.5639},{"x":440,"y":4.5579},{"x":450,"y":4.5546},{"x":460,"y":4.5443},{"x":470,"y":4.5437},{"x":480,"y":4.5266},{"x":490,"y":4.5255},{"x":500,"y":4.5108},{"x":510,"y":4.506},{"x":520,"y":4.5148},{"x":530,"y":4.495},{"x":540,"y":4.4827},{"x":550,"y":4.481},{"x":560,"y":4.4805},{"x":570,"y":4.4775},{"x":580,"y":4.4704},{"x":590,"y":4.4615},{"x":600,"y":4.4527},{"x":610,"y":4.4502}]}],"gaps":[{"key":"adam256","label":"Dust (Adam) 256","label_zh":"Dust (Adam) 256","color":"--a1","dash":[],"info":{"title":"Dust (Adam), population 256","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","Adam, settings of the paper's Appendix F (our reconstruction)"],["Population","256 direct draws per step on 1 GPU"],["Test loss","5.171"],["Run","<code>dust-adam-10m-p256-s42<\/code>"]]},"info_zh":{"title":"Dust (Adam), population 256","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","Adam，论文附录 F 的设置（我们的重建）"],["population","每步 256 次直接 draw，1 张 GPU"],["test loss","5.171"],["运行","<code>dust-adam-10m-p256-s42<\/code>"]]},"points":[{"x":10,"y":0.1681},{"x":20,"y":0.8878},{"x":30,"y":1.2123},{"x":40,"y":1.2572},{"x":50,"y":1.1835},{"x":60,"y":1.0584},{"x":70,"y":1.0535},{"x":80,"y":1.0493},{"x":90,"y":1.0742},{"x":100,"y":1.0737},{"x":110,"y":1.0758},{"x":120,"y":1.0866},{"x":130,"y":1.0782},{"x":140,"y":1.06},{"x":150,"y":1.0315},{"x":160,"y":0.9991},{"x":170,"y":0.9704},{"x":180,"y":0.9367},{"x":190,"y":0.9048},{"x":200,"y":0.8875},{"x":210,"y":0.8734},{"x":220,"y":0.8582},{"x":230,"y":0.8511},{"x":240,"y":0.8426},{"x":250,"y":0.835},{"x":260,"y":0.8382},{"x":270,"y":0.8471},{"x":280,"y":0.8403},{"x":290,"y":0.8451},{"x":300,"y":0.8524},{"x":310,"y":0.8565},{"x":320,"y":0.8649},{"x":330,"y":0.8798},{"x":340,"y":0.8958},{"x":350,"y":0.9015},{"x":360,"y":0.9202},{"x":370,"y":0.9392},{"x":380,"y":0.9506},{"x":390,"y":0.9669},{"x":400,"y":0.9819},{"x":410,"y":0.9936},{"x":420,"y":1.0126},{"x":430,"y":1.0319},{"x":440,"y":1.0356},{"x":450,"y":1.0478},{"x":460,"y":1.0661},{"x":470,"y":1.0697},{"x":480,"y":1.0871},{"x":490,"y":1.0905},{"x":500,"y":1.1031},{"x":510,"y":1.1045},{"x":520,"y":1.1248},{"x":530,"y":1.1313},{"x":540,"y":1.1461},{"x":550,"y":1.1577},{"x":560,"y":1.166},{"x":570,"y":1.1702},{"x":580,"y":1.1877},{"x":590,"y":1.1857},{"x":600,"y":1.1989},{"x":610,"y":1.1977}]},{"key":"adam1024","label":"Dust (Adam) 1k","label_zh":"Dust (Adam) 1k","color":"--a2","dash":[],"info":{"title":"Dust (Adam), population 1,024","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","Adam, settings of the paper's Appendix F (our reconstruction)"],["Population","1,024 direct draws per step on 1 GPU"],["Test loss","4.854"],["Run","<code>dust-adam-10m-p1024-s42<\/code>"]]},"info_zh":{"title":"Dust (Adam), population 1,024","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","Adam，论文附录 F 的设置（我们的重建）"],["population","每步 1,024 次直接 draw，1 张 GPU"],["test loss","4.854"],["运行","<code>dust-adam-10m-p1024-s42<\/code>"]]},"points":[{"x":10,"y":0.0595},{"x":20,"y":0.1757},{"x":30,"y":0.2569},{"x":40,"y":0.2707},{"x":50,"y":0.2486},{"x":60,"y":0.2274},{"x":70,"y":0.222},{"x":80,"y":0.218},{"x":90,"y":0.2396},{"x":100,"y":0.2563},{"x":110,"y":0.2811},{"x":120,"y":0.305},{"x":130,"y":0.3291},{"x":140,"y":0.3488},{"x":150,"y":0.3677},{"x":160,"y":0.3894},{"x":170,"y":0.4127},{"x":180,"y":0.428},{"x":190,"y":0.4448},{"x":200,"y":0.4631},{"x":210,"y":0.4753},{"x":220,"y":0.4892},{"x":230,"y":0.5029},{"x":240,"y":0.5158},{"x":250,"y":0.5247},{"x":260,"y":0.5421},{"x":270,"y":0.5544},{"x":280,"y":0.5552},{"x":290,"y":0.5711},{"x":300,"y":0.5797},{"x":310,"y":0.5853},{"x":320,"y":0.6008},{"x":330,"y":0.6162},{"x":340,"y":0.6339},{"x":350,"y":0.6416},{"x":360,"y":0.6613},{"x":370,"y":0.6824},{"x":380,"y":0.6913},{"x":390,"y":0.7098},{"x":400,"y":0.7235},{"x":410,"y":0.7348},{"x":420,"y":0.7519},{"x":430,"y":0.7934},{"x":440,"y":0.7787},{"x":450,"y":0.7837},{"x":460,"y":0.7951},{"x":470,"y":0.7955},{"x":480,"y":0.8094},{"x":490,"y":0.8117},{"x":500,"y":0.8206},{"x":510,"y":0.8171},{"x":520,"y":0.8366},{"x":530,"y":0.8369},{"x":540,"y":0.8512},{"x":550,"y":0.8562},{"x":560,"y":0.8598},{"x":570,"y":0.8636},{"x":580,"y":0.8754},{"x":590,"y":0.8779},{"x":600,"y":0.8853},{"x":610,"y":0.8834}]},{"key":"adam4096","label":"Dust (Adam) 4k","label_zh":"Dust (Adam) 4k","color":"--a3","dash":[],"info":{"title":"Dust (Adam), population 4,096","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","Adam, settings of the paper's Appendix F (our reconstruction)"],["Population","4,096 direct draws per step on 4 GPUs"],["Test loss","4.560"],["Run","<code>dust-adam-10m-p4096-s42<\/code>"]]},"info_zh":{"title":"Dust (Adam), population 4,096","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","Adam，论文附录 F 的设置（我们的重建）"],["population","每步 4,096 次直接 draw，4 张 GPU"],["test loss","4.560"],["运行","<code>dust-adam-10m-p4096-s42<\/code>"]]},"points":[{"x":10,"y":-0.0781},{"x":20,"y":0.0421},{"x":30,"y":0.1338},{"x":40,"y":0.1487},{"x":50,"y":0.1213},{"x":60,"y":0.1023},{"x":70,"y":0.1023},{"x":80,"y":0.108},{"x":90,"y":0.1145},{"x":100,"y":0.1274},{"x":110,"y":0.1316},{"x":120,"y":0.1525},{"x":130,"y":0.1682},{"x":140,"y":0.1734},{"x":150,"y":0.1862},{"x":160,"y":0.1977},{"x":170,"y":0.2108},{"x":180,"y":0.2199},{"x":190,"y":0.2282},{"x":200,"y":0.2427},{"x":210,"y":0.2443},{"x":220,"y":0.2559},{"x":230,"y":0.2675},{"x":240,"y":0.2754},{"x":250,"y":0.2795},{"x":260,"y":0.2956},{"x":270,"y":0.2926},{"x":280,"y":0.3045},{"x":290,"y":0.309},{"x":300,"y":0.3191},{"x":310,"y":0.3244},{"x":320,"y":0.333},{"x":330,"y":0.3429},{"x":340,"y":0.3599},{"x":350,"y":0.3633},{"x":360,"y":0.3783},{"x":370,"y":0.4035},{"x":380,"y":0.414},{"x":390,"y":0.4242},{"x":400,"y":0.4295},{"x":410,"y":0.4417},{"x":420,"y":0.4602},{"x":430,"y":0.4717},{"x":440,"y":0.4786},{"x":450,"y":0.4886},{"x":460,"y":0.5038},{"x":470,"y":0.503},{"x":480,"y":0.5178},{"x":490,"y":0.5224},{"x":500,"y":0.5274},{"x":510,"y":0.5292},{"x":520,"y":0.5475},{"x":530,"y":0.5504},{"x":540,"y":0.5595},{"x":550,"y":0.5672},{"x":560,"y":0.5761},{"x":570,"y":0.5735},{"x":580,"y":0.5866},{"x":590,"y":0.5872},{"x":600,"y":0.598},{"x":610,"y":0.5922}]},{"key":"adam16384","label":"Dust (Adam) 16k","label_zh":"Dust (Adam) 16k","color":"--a4","dash":[],"info":{"title":"Dust (Adam), population 16,384","rows":[["Method","Dust: activation perturbation, no backward pass"],["Optimizer","Adam, settings of the paper's Appendix F (our reconstruction)"],["Population","16,384 direct draws per step on 8 GPUs"],["Test loss","4.436"],["Run","<code>dust-adam-10m-p16384-s42<\/code>"]]},"info_zh":{"title":"Dust (Adam), population 16,384","rows":[["方法","Dust：扰动激活，不做反向传播"],["优化器","Adam，论文附录 F 的设置（我们的重建）"],["population","每步 16,384 次直接 draw，8 张 GPU"],["test loss","4.436"],["运行","<code>dust-adam-10m-p16384-s42<\/code>"]]},"points":[{"x":10,"y":-0.0547},{"x":20,"y":-0.0173},{"x":30,"y":0.052},{"x":40,"y":0.0465},{"x":50,"y":0.0366},{"x":60,"y":0.0173},{"x":70,"y":0.0197},{"x":80,"y":0.0293},{"x":90,"y":0.0284},{"x":100,"y":0.037},{"x":110,"y":0.0378},{"x":120,"y":0.0591},{"x":130,"y":0.0686},{"x":140,"y":0.0752},{"x":150,"y":0.0807},{"x":160,"y":0.092},{"x":170,"y":0.1092},{"x":180,"y":0.1103},{"x":190,"y":0.1176},{"x":200,"y":0.1425},{"x":210,"y":0.1383},{"x":220,"y":0.1466},{"x":230,"y":0.1538},{"x":240,"y":0.1557},{"x":250,"y":0.1658},{"x":260,"y":0.1816},{"x":270,"y":0.1765},{"x":280,"y":0.1844},{"x":290,"y":0.1895},{"x":300,"y":0.1965},{"x":310,"y":0.2059},{"x":320,"y":0.2166},{"x":330,"y":0.2268},{"x":340,"y":0.243},{"x":350,"y":0.2484},{"x":360,"y":0.2599},{"x":370,"y":0.2789},{"x":380,"y":0.2871},{"x":390,"y":0.3048},{"x":400,"y":0.3128},{"x":410,"y":0.3266},{"x":420,"y":0.3408},{"x":430,"y":0.3541},{"x":440,"y":0.3584},{"x":450,"y":0.3717},{"x":460,"y":0.3828},{"x":470,"y":0.3867},{"x":480,"y":0.3922},{"x":490,"y":0.3995},{"x":500,"y":0.4037},{"x":510,"y":0.4067},{"x":520,"y":0.4299},{"x":530,"y":0.4201},{"x":540,"y":0.4321},{"x":550,"y":0.4412},{"x":560,"y":0.4478},{"x":570,"y":0.4487},{"x":580,"y":0.4629},{"x":590,"y":0.4619},{"x":600,"y":0.4696},{"x":610,"y":0.467}]}],"cpt10m":[{"key":"bp-keepopt-lr0.002","label":"Backprop, Adam state kept, 0.002","label_zh":"Backprop，保留 Adam 状态，0.002","color":"--bp-sgd","dash":[],"info":{"title":"Backprop, Adam state kept, 0.002","rows":[["Start","backprop AdamW checkpoint, validation loss 3.980"],["Optimizer","AdamW state carried over from the checkpoint"],["Validation loss, step 200","3.836"],["Run","<code>cpt10m-bp-keepopt-lr0.002<\/code>"]]},"info_zh":{"title":"Backprop，保留 Adam 状态，0.002","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.980"],["优化器","沿用 checkpoint 的 AdamW 状态"],["验证 loss，第 200 步","3.836"],["运行","<code>cpt10m-bp-keepopt-lr0.002<\/code>"]]},"points":[{"x":0,"y":3.98},{"x":1,"y":3.9769},{"x":10,"y":3.9738},{"x":20,"y":3.9556},{"x":30,"y":3.9501},{"x":40,"y":3.9392},{"x":50,"y":3.9332},{"x":60,"y":3.9316},{"x":70,"y":3.9148},{"x":80,"y":3.9078},{"x":90,"y":3.8937},{"x":100,"y":3.8877},{"x":110,"y":3.8829},{"x":120,"y":3.8768},{"x":130,"y":3.873},{"x":140,"y":3.865},{"x":150,"y":3.8615},{"x":160,"y":3.8573},{"x":170,"y":3.8463},{"x":180,"y":3.8391},{"x":190,"y":3.84},{"x":200,"y":3.8363}]},{"key":"bp-fresh-lr0.002","label":"Backprop, 0.002","label_zh":"Backprop，0.002","color":"--bp-adam","dash":[5,4],"info":{"title":"Backprop, 0.002","rows":[["Start","backprop AdamW checkpoint, validation loss 3.980"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","3.838"],["Run","<code>cpt10m-bp-fresh-lr0.002<\/code>"]]},"info_zh":{"title":"Backprop，0.002","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.980"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","3.838"],["运行","<code>cpt10m-bp-fresh-lr0.002<\/code>"]]},"points":[{"x":0,"y":3.98},{"x":1,"y":4.3038},{"x":10,"y":4.0214},{"x":20,"y":3.9769},{"x":30,"y":3.9611},{"x":40,"y":3.9486},{"x":50,"y":3.9404},{"x":60,"y":3.9379},{"x":70,"y":3.9212},{"x":80,"y":3.9152},{"x":90,"y":3.9008},{"x":100,"y":3.895},{"x":110,"y":3.8881},{"x":120,"y":3.887},{"x":130,"y":3.8806},{"x":140,"y":3.8701},{"x":150,"y":3.8664},{"x":160,"y":3.8608},{"x":170,"y":3.8514},{"x":180,"y":3.8443},{"x":190,"y":3.8461},{"x":200,"y":3.8383}]},{"key":"bp-fresh-lr0.0005","label":"Backprop, 0.0005","label_zh":"Backprop，0.0005","color":"--bp-adam","dash":[],"info":{"title":"Backprop, 0.0005","rows":[["Start","backprop AdamW checkpoint, validation loss 3.980"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","3.796"],["Run","<code>cpt10m-bp-fresh-lr0.0005<\/code>"]]},"info_zh":{"title":"Backprop，0.0005","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.980"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","3.796"],["运行","<code>cpt10m-bp-fresh-lr0.0005<\/code>"]]},"points":[{"x":0,"y":3.98},{"x":1,"y":4.1607},{"x":10,"y":3.9584},{"x":20,"y":3.9191},{"x":30,"y":3.9015},{"x":40,"y":3.8907},{"x":50,"y":3.8797},{"x":60,"y":3.8718},{"x":70,"y":3.8625},{"x":80,"y":3.856},{"x":90,"y":3.8476},{"x":100,"y":3.8412},{"x":110,"y":3.8347},{"x":120,"y":3.8301},{"x":130,"y":3.8361},{"x":140,"y":3.8222},{"x":150,"y":3.8161},{"x":160,"y":3.8107},{"x":170,"y":3.8062},{"x":180,"y":3.7999},{"x":190,"y":3.7987},{"x":200,"y":3.7956}]},{"key":"dust-adam-p1024","label":"Dust 1k, 0.0015","label_zh":"Dust 1k，0.0015","color":"--a2","dash":[5,4],"info":{"title":"Dust 1k, 0.0015","rows":[["Start","backprop AdamW checkpoint, validation loss 3.980"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","4.048"],["Run","<code>cpt10m-dust-adam-p1024<\/code>"]]},"info_zh":{"title":"Dust 1k，0.0015","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.980"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","4.048"],["运行","<code>cpt10m-dust-adam-p1024<\/code>"]]},"points":[{"x":0,"y":3.98},{"x":1,"y":4.0428},{"x":10,"y":3.9675},{"x":20,"y":3.9613},{"x":30,"y":3.9665},{"x":40,"y":3.9695},{"x":50,"y":3.9701},{"x":60,"y":3.9822},{"x":70,"y":3.9812},{"x":80,"y":3.9964},{"x":90,"y":4.0042},{"x":100,"y":3.9977},{"x":110,"y":4.0106},{"x":120,"y":4.0097},{"x":130,"y":4.0133},{"x":140,"y":4.0173},{"x":150,"y":4.0224},{"x":160,"y":4.0261},{"x":170,"y":4.0269},{"x":180,"y":4.0543},{"x":190,"y":4.0453},{"x":200,"y":4.0477}]},{"key":"dust-adam-p4096","label":"Dust 4k, 0.0015","label_zh":"Dust 4k，0.0015","color":"--a3","dash":[5,4],"info":{"title":"Dust 4k, 0.0015","rows":[["Start","backprop AdamW checkpoint, validation loss 3.980"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","3.986"],["Run","<code>cpt10m-dust-adam-p4096<\/code>"]]},"info_zh":{"title":"Dust 4k，0.0015","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.980"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","3.986"],["运行","<code>cpt10m-dust-adam-p4096<\/code>"]]},"points":[{"x":0,"y":3.98},{"x":1,"y":4.0462},{"x":10,"y":3.9677},{"x":20,"y":3.9568},{"x":30,"y":3.9565},{"x":40,"y":3.9579},{"x":50,"y":3.9587},{"x":60,"y":3.9617},{"x":70,"y":3.9625},{"x":80,"y":3.9668},{"x":90,"y":3.9702},{"x":100,"y":3.974},{"x":110,"y":3.9767},{"x":120,"y":3.9787},{"x":130,"y":3.9752},{"x":140,"y":3.9734},{"x":150,"y":3.985},{"x":160,"y":3.9814},{"x":170,"y":3.9797},{"x":180,"y":3.9779},{"x":190,"y":3.9785},{"x":200,"y":3.9864}]},{"key":"dust-adam-p16384","label":"Dust 16k, 0.002","label_zh":"Dust 16k，0.002","color":"--a4","dash":[5,4],"info":{"title":"Dust 16k, 0.002","rows":[["Start","backprop AdamW checkpoint, validation loss 3.980"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","4.007"],["Run","<code>cpt10m-dust-adam-p16384<\/code>"]]},"info_zh":{"title":"Dust 16k，0.002","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.980"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","4.007"],["运行","<code>cpt10m-dust-adam-p16384<\/code>"]]},"points":[{"x":0,"y":3.98},{"x":1,"y":4.1573},{"x":10,"y":4.016},{"x":20,"y":4.0042},{"x":30,"y":4.0085},{"x":40,"y":4.0073},{"x":50,"y":4.0063},{"x":60,"y":4.0268},{"x":70,"y":4.013},{"x":80,"y":4.0171},{"x":90,"y":4.0137},{"x":100,"y":4.0109},{"x":110,"y":4.0208},{"x":120,"y":4.0629},{"x":130,"y":4.0375},{"x":140,"y":4.0092},{"x":150,"y":4.006},{"x":160,"y":4.0006},{"x":170,"y":4.0022},{"x":180,"y":3.9978},{"x":190,"y":4.0027},{"x":200,"y":4.0072}]},{"key":"dust-adam-p4096-lr0.0005","label":"Dust 4k, 0.0005","label_zh":"Dust 4k，0.0005","color":"--a3","dash":[],"info":{"title":"Dust 4k, 0.0005","rows":[["Start","backprop AdamW checkpoint, validation loss 3.980"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","3.859"],["Run","<code>cpt10m-dust-adam-p4096-lr0.0005<\/code>"]]},"info_zh":{"title":"Dust 4k，0.0005","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.980"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","3.859"],["运行","<code>cpt10m-dust-adam-p4096-lr0.0005<\/code>"]]},"points":[{"x":0,"y":3.98},{"x":1,"y":3.9729},{"x":10,"y":3.9395},{"x":20,"y":3.9232},{"x":30,"y":3.9129},{"x":40,"y":3.9056},{"x":50,"y":3.9},{"x":60,"y":3.8959},{"x":70,"y":3.8909},{"x":80,"y":3.8855},{"x":90,"y":3.8822},{"x":100,"y":3.8789},{"x":110,"y":3.8765},{"x":120,"y":3.8739},{"x":130,"y":3.8712},{"x":140,"y":3.8695},{"x":150,"y":3.8687},{"x":160,"y":3.8682},{"x":170,"y":3.8653},{"x":180,"y":3.8625},{"x":190,"y":3.8613},{"x":200,"y":3.8594}]},{"key":"dust-adam-p16384-lr0.0005","label":"Dust 16k, 0.0005","label_zh":"Dust 16k，0.0005","color":"--a4","dash":[],"info":{"title":"Dust 16k, 0.0005","rows":[["Start","backprop AdamW checkpoint, validation loss 3.980"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","3.846"],["Run","<code>cpt10m-dust-adam-p16384-lr0.0005<\/code>"]]},"info_zh":{"title":"Dust 16k，0.0005","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.980"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","3.846"],["运行","<code>cpt10m-dust-adam-p16384-lr0.0005<\/code>"]]},"points":[{"x":0,"y":3.98},{"x":1,"y":3.9703},{"x":10,"y":3.9352},{"x":20,"y":3.9199},{"x":30,"y":3.9099},{"x":40,"y":3.899},{"x":50,"y":3.8906},{"x":60,"y":3.8865},{"x":70,"y":3.8806},{"x":80,"y":3.878},{"x":90,"y":3.8727},{"x":100,"y":3.8703},{"x":110,"y":3.8657},{"x":120,"y":3.8619},{"x":130,"y":3.8593},{"x":140,"y":3.8586},{"x":150,"y":3.8555},{"x":160,"y":3.8535},{"x":170,"y":3.8498},{"x":180,"y":3.8457},{"x":190,"y":3.8465},{"x":200,"y":3.8458}]}],"cpt100m":[{"key":"bp-keepopt-lr0.002","label":"Backprop, Adam state kept, 0.002","label_zh":"Backprop，保留 Adam 状态，0.002","color":"--bp-sgd","dash":[],"info":{"title":"Backprop, Adam state kept, 0.002","rows":[["Start","backprop AdamW checkpoint, validation loss 3.254"],["Optimizer","AdamW state carried over from the checkpoint"],["Validation loss, step 200","3.249"],["Run","<code>cpt100m-bp-keepopt-lr0.002<\/code>"]]},"info_zh":{"title":"Backprop，保留 Adam 状态，0.002","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.254"],["优化器","沿用 checkpoint 的 AdamW 状态"],["验证 loss，第 200 步","3.249"],["运行","<code>cpt100m-bp-keepopt-lr0.002<\/code>"]]},"points":[{"x":0,"y":3.2538},{"x":1,"y":3.2518},{"x":10,"y":3.2514},{"x":20,"y":3.2509},{"x":30,"y":3.2555},{"x":40,"y":3.2506},{"x":50,"y":3.2524},{"x":60,"y":3.254},{"x":70,"y":3.2515},{"x":80,"y":3.2515},{"x":90,"y":3.2502},{"x":100,"y":3.2525},{"x":110,"y":3.2565},{"x":120,"y":3.256},{"x":130,"y":3.2548},{"x":140,"y":3.2491},{"x":150,"y":3.2496},{"x":160,"y":3.2474},{"x":170,"y":3.2491},{"x":180,"y":3.253},{"x":190,"y":3.2485},{"x":200,"y":3.2487}]},{"key":"bp-fresh-lr0.002","label":"Backprop, 0.002","label_zh":"Backprop，0.002","color":"--bp-adam","dash":[5,4],"info":{"title":"Backprop, 0.002","rows":[["Start","backprop AdamW checkpoint, validation loss 3.254"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","3.250"],["Run","<code>cpt100m-bp-fresh-lr0.002<\/code>"]]},"info_zh":{"title":"Backprop，0.002","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.254"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","3.250"],["运行","<code>cpt100m-bp-fresh-lr0.002<\/code>"]]},"points":[{"x":0,"y":3.2538},{"x":1,"y":3.3818},{"x":10,"y":3.2754},{"x":20,"y":3.2601},{"x":30,"y":3.2557},{"x":40,"y":3.2528},{"x":50,"y":3.2571},{"x":60,"y":3.258},{"x":70,"y":3.2578},{"x":80,"y":3.2524},{"x":90,"y":3.2522},{"x":100,"y":3.2546},{"x":110,"y":3.2573},{"x":120,"y":3.258},{"x":130,"y":3.2571},{"x":140,"y":3.2514},{"x":150,"y":3.2503},{"x":160,"y":3.2493},{"x":170,"y":3.2502},{"x":180,"y":3.2543},{"x":190,"y":3.2493},{"x":200,"y":3.2504}]},{"key":"bp-fresh-lr0.0005","label":"Backprop, 0.0005","label_zh":"Backprop，0.0005","color":"--bp-adam","dash":[],"info":{"title":"Backprop, 0.0005","rows":[["Start","backprop AdamW checkpoint, validation loss 3.254"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","3.190"],["Run","<code>cpt100m-bp-fresh-lr0.0005<\/code>"]]},"info_zh":{"title":"Backprop，0.0005","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.254"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","3.190"],["运行","<code>cpt100m-bp-fresh-lr0.0005<\/code>"]]},"points":[{"x":0,"y":3.2538},{"x":1,"y":3.3336},{"x":10,"y":3.2436},{"x":20,"y":3.2254},{"x":30,"y":3.2187},{"x":40,"y":3.2141},{"x":50,"y":3.2112},{"x":60,"y":3.2101},{"x":70,"y":3.2087},{"x":80,"y":3.2035},{"x":90,"y":3.2021},{"x":100,"y":3.2056},{"x":110,"y":3.2037},{"x":120,"y":3.1982},{"x":130,"y":3.1976},{"x":140,"y":3.1959},{"x":150,"y":3.1937},{"x":160,"y":3.1919},{"x":170,"y":3.1917},{"x":180,"y":3.1922},{"x":190,"y":3.1901},{"x":200,"y":3.19}]},{"key":"dust-adam-p4096","label":"Dust 4k, 0.0015","label_zh":"Dust 4k，0.0015","color":"--a3","dash":[5,4],"info":{"title":"Dust 4k, 0.0015","rows":[["Start","backprop AdamW checkpoint, validation loss 3.254"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","3.257"],["Run","<code>cpt100m-dust-adam-p4096<\/code>"]]},"info_zh":{"title":"Dust 4k，0.0015","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.254"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","3.257"],["运行","<code>cpt100m-dust-adam-p4096<\/code>"]]},"points":[{"x":0,"y":3.2538},{"x":1,"y":3.339},{"x":10,"y":3.2724},{"x":20,"y":3.2465},{"x":30,"y":3.2423},{"x":40,"y":3.2406},{"x":50,"y":3.2418},{"x":60,"y":3.2413},{"x":70,"y":3.2414},{"x":80,"y":3.2465},{"x":90,"y":3.2413},{"x":100,"y":3.2483},{"x":110,"y":3.2432},{"x":120,"y":3.2434},{"x":130,"y":3.2474},{"x":140,"y":3.2454},{"x":150,"y":3.2485},{"x":160,"y":3.3868},{"x":170,"y":3.2793},{"x":180,"y":3.2628},{"x":190,"y":3.2575},{"x":200,"y":3.2573}]},{"key":"dust-adam-p4096-lr0.0005","label":"Dust 4k, 0.0005","label_zh":"Dust 4k，0.0005","color":"--a3","dash":[],"info":{"title":"Dust 4k, 0.0005","rows":[["Start","backprop AdamW checkpoint, validation loss 3.254"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","3.207"],["Run","<code>cpt100m-dust-adam-p4096-lr0.0005<\/code>"]]},"info_zh":{"title":"Dust 4k，0.0005","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.254"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","3.207"],["运行","<code>cpt100m-dust-adam-p4096-lr0.0005<\/code>"]]},"points":[{"x":0,"y":3.2538},{"x":1,"y":3.256},{"x":10,"y":3.2426},{"x":20,"y":3.2337},{"x":30,"y":3.2307},{"x":40,"y":3.227},{"x":50,"y":3.2239},{"x":60,"y":3.2219},{"x":70,"y":3.2204},{"x":80,"y":3.218},{"x":90,"y":3.2201},{"x":100,"y":3.2168},{"x":110,"y":3.2168},{"x":120,"y":3.2133},{"x":130,"y":3.2128},{"x":140,"y":3.2109},{"x":150,"y":3.2098},{"x":160,"y":3.2104},{"x":170,"y":3.2088},{"x":180,"y":3.2078},{"x":190,"y":3.2073},{"x":200,"y":3.2073}]},{"key":"dust-adam-p16384-lr0.0005","label":"Dust 16k, 0.0005","label_zh":"Dust 16k，0.0005","color":"--a4","dash":[],"info":{"title":"Dust 16k, 0.0005","rows":[["Start","backprop AdamW checkpoint, validation loss 3.254"],["Optimizer","fresh optimizer state"],["Validation loss, step 200","3.199"],["Run","<code>cpt100m-dust-adam-p16384-lr0.0005<\/code>"]]},"info_zh":{"title":"Dust 16k，0.0005","rows":[["起点","backprop AdamW checkpoint，验证 loss 3.254"],["优化器","全新的优化器状态"],["验证 loss，第 200 步","3.199"],["运行","<code>cpt100m-dust-adam-p16384-lr0.0005<\/code>"]]},"points":[{"x":0,"y":3.2538},{"x":1,"y":3.2508},{"x":10,"y":3.2384},{"x":20,"y":3.2306},{"x":30,"y":3.2263},{"x":40,"y":3.2225},{"x":50,"y":3.219},{"x":60,"y":3.2179},{"x":70,"y":3.2135},{"x":80,"y":3.2115},{"x":90,"y":3.2107},{"x":100,"y":3.208},{"x":110,"y":3.2076},{"x":120,"y":3.2119},{"x":130,"y":3.2055},{"x":140,"y":3.2034},{"x":150,"y":3.2024},{"x":160,"y":3.2015},{"x":170,"y":3.2012},{"x":180,"y":3.2019},{"x":190,"y":3.1994},{"x":200,"y":3.1995}]}]}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
+<script>
+(function () {
+  const DATA = JSON.parse(document.getElementById("data").textContent);
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const FINE = !window.matchMedia || window.matchMedia("(pointer: fine)").matches;
+  const T = (en, zh) => (document.documentElement.dataset.lang === "zh" ? zh : en);
+  let charts = [], byId = {};
+
+  function rgba(color, alpha) {
+    const h = color.replace("#", "");
+    const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h, 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  }
+
+  // One line per run; a legend entry highlights every dataset with its key. `hl` is "on", "off" or undefined.
+  function line(s) {
+    const color = css(s.color), faded = rgba(color, 0.13), base = 1.7;
+    const col = (ctx) => (ctx.dataset && ctx.dataset.hl === "off" ? faded : color);
+    return {
+      label: s.label, legendKey: s.key, legendLabel: T(s.label, s.label_zh || s.label), swatch: color,
+      info: T(s.info, s.info_zh || s.info), data: s.points,
+      borderDash: s.dash, pointRadius: s.dots ? 3 : 0, pointHoverRadius: s.dots ? 3 : 0, tension: 0, spanGaps: false,
+      borderColor: col, backgroundColor: col, pointBackgroundColor: col, pointBorderColor: col,
+      borderWidth: (ctx) => (ctx.dataset.hl === "on" ? base + 0.9 : ctx.dataset.hl === "off" ? 1.1 : base),
+    };
+  }
+  function guide(y, x0, x1) {
+    return { label: "reference", legendSkip: true, data: [{ x: x0, y }, { x: x1, y }],
+      borderColor: css("--faint"), borderWidth: 1, borderDash: [2, 4], pointRadius: 0, pointHoverRadius: 0 };
+  }
+
+  function niceStep(raw) {
+    const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+    return (f < 1.5 ? 1 : f < 2.25 ? 2 : f < 3.5 ? 2.5 : f < 7.5 ? 5 : 10) * p;
+  }
+  const decimals = (step) => { const s = String(+step.toPrecision(6)); const i = s.indexOf("."); return i < 0 ? 0 : s.length - i - 1; };
+  const POPS = { 256: "256", 1024: "1k", 4096: "4k", 16384: "16k" };
+  function popAxis() {
+    return {
+      type: "logarithmic", min: 200, max: 21000, title: { display: true, text: T("Population", "population"), color: css("--ink") },
+      afterBuildTicks: (axis) => {
+        const inside = Object.keys(POPS).map(Number).filter((v) => v >= axis.min && v <= axis.max);
+        axis.ticks = (inside.length ? inside : [axis.min, axis.max]).map((value) => ({ value }));
+      },
+      ticks: { callback: (v) => POPS[v] || String(Math.round(v)), color: css("--muted"), autoSkip: false, maxRotation: 0 },
+      grid: { color: css("--rule") }, border: { color: css("--ink") },
+    };
+  }
+  function linAxis(title, step, min, max) {
+    return {
+      type: "linear", min, max, title: { display: !!title, text: title, color: css("--ink") },
+      afterBuildTicks: (axis) => {
+        const range = axis.max - axis.min;
+        const s = step && range / step >= 2.5 && range / step <= 10 ? step : niceStep(range / 5);
+        const ticks = [];
+        for (let v = Math.ceil(axis.min / s - 1e-9) * s; v <= axis.max + s * 1e-9; v += s) ticks.push({ value: +v.toFixed(10) });
+        axis.tickStep = s;
+        axis.ticks = ticks;
+      },
+      ticks: { color: css("--muted"), autoSkip: false, maxRotation: 0, callback: function (v) { return Number(v).toFixed(decimals(this.tickStep || 1)); } },
+      grid: { color: css("--rule") }, border: { color: css("--ink") },
+    };
+  }
+  const stepAxis = (max, step) => linAxis(T("Training step", "训练步数"), step, 0, max);
+  const TEST = () => T("Test loss (nats)", "test loss（nat）");
+  const VAL = () => T("Validation loss (nats)", "验证 loss（nat）");
+
+  function zoomOptions() {
+    const done = ({ chart }) => syncReset(chart);
+    return {
+      limits: { x: { min: "original", max: "original" } },
+      zoom: {
+        drag: { enabled: FINE, threshold: 6, backgroundColor: rgba(css("--accent"), 0.1), borderColor: rgba(css("--accent"), 0.6), borderWidth: 1 },
+        wheel: { enabled: true, modifierKey: "ctrl", speed: 0.08 }, pinch: { enabled: false }, mode: "xy", onZoomComplete: done,
+      },
+      pan: { enabled: FINE && !!window.Hammer, modifierKey: "shift", mode: "xy", onPanComplete: done },
+    };
+  }
+  function make(id, datasets, scales) {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    const chart = new Chart(canvas, {
+      type: "line", data: { datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false, parsing: false, normalized: true,
+        interaction: { mode: "nearest", intersect: false, axis: "xy" },
+        plugins: { legend: { display: false }, tooltip: { enabled: false }, zoom: zoomOptions() }, scales,
+      },
+    });
+    charts.push(chart);
+    byId[id] = chart;
+  }
+
+  function swatch(ds) {
+    const c = ds.swatch, dash = ds.borderDash && ds.borderDash.length ? ` stroke-dasharray="${ds.borderDash.join(" ")}"` : "";
+    return `<svg width="28" height="14" viewBox="0 0 28 14" aria-hidden="true"><line x1="1" y1="7" x2="27" y2="7" stroke="${c}" stroke-width="2.2"${dash}/></svg>`;
+  }
+  function highlight(scope) {
+    const active = new Set(scope.pinned);
+    if (scope.hover != null) active.add(scope.hover);
+    for (const chart of scope.charts) {
+      chart.data.datasets.forEach((ds) => {
+        if (!ds.legendSkip) ds.hl = active.size === 0 ? undefined : active.has(ds.legendKey) ? "on" : "off";
+      });
+      chart.update("none");
+    }
+    scope.el.classList.toggle("has-active", active.size > 0);
+    scope.el.querySelectorAll("button.key").forEach((b) => {
+      b.classList.toggle("is-active", active.has(b.dataset.key));
+      b.setAttribute("aria-pressed", String(scope.pinned.has(b.dataset.key)));
+    });
+  }
+
+  const pop = document.createElement("div");
+  pop.className = "legend-info";
+  pop.setAttribute("role", "tooltip");
+  pop.hidden = true;
+  document.body.appendChild(pop);
+  // The details open above the legend entry so they do not cover the charts.
+  function placeInfo(button) {
+    const r = button.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+    const left = Math.max(16, Math.min(r.left, document.documentElement.clientWidth - w - 16));
+    const top = r.top - h - 8 >= 8 ? r.top - h - 8 : r.bottom + 8;
+    pop.style.left = `${left + window.scrollX}px`;
+    pop.style.top = `${top + window.scrollY}px`;
+  }
+  function showInfo(button, info) {
+    if (!info) return;
+    pop.innerHTML = `<b>${info.title}</b><dl>${info.rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>`;
+    pop.hidden = false;
+    placeInfo(button);
+  }
+  const hideInfo = () => { pop.hidden = true; };
+
+  function curveAt(chart, x, y) {
+    let bestKey = null, bestDistance = 10;
+    chart.data.datasets.forEach((ds, i) => {
+      if (ds.legendSkip) return;
+      const points = chart.getDatasetMeta(i).data.filter((pt) => !pt.skip && Number.isFinite(pt.x) && Number.isFinite(pt.y));
+      points.forEach((pt, j) => {
+        let d = Math.hypot(pt.x - x, pt.y - y);
+        const next = points[j + 1];
+        if (next) {
+          const dx = next.x - pt.x, dy = next.y - pt.y, len = dx * dx + dy * dy;
+          const t = len ? Math.max(0, Math.min(1, ((x - pt.x) * dx + (y - pt.y) * dy) / len)) : 0;
+          d = Math.min(d, Math.hypot(pt.x + t * dx - x, pt.y + t * dy - y));
+        }
+        if (d < bestDistance) { bestDistance = d; bestKey = ds.legendKey; }
+      });
+    });
+    return bestKey;
+  }
+
+  // A click on a legend entry pins its highlight; several entries can be pinned at once.
+  const scopes = {};
+  function buildLegends() {
+    document.querySelectorAll(".keys[data-for]").forEach((el) => {
+      const id = el.dataset.for, previous = scopes[id];
+      const scope = scopes[id] = { el, charts: id.split(/\s+/).map((c) => byId[c]).filter(Boolean),
+        pinned: previous ? previous.pinned : new Set(), hover: null };
+      const entries = new Map();
+      scope.charts.forEach((c) => c.data.datasets.forEach((ds) => { if (!ds.legendSkip && !entries.has(ds.legendKey)) entries.set(ds.legendKey, ds); }));
+      el.textContent = "";
+      for (const [key, ds] of entries) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "key";
+        b.dataset.key = key;
+        b.innerHTML = swatch(ds);
+        b.appendChild(document.createTextNode(ds.legendLabel));
+        const show = () => { scope.hover = key; highlight(scope); showInfo(b, ds.info); };
+        const restore = () => { scope.hover = null; highlight(scope); hideInfo(); };
+        b.addEventListener("mouseenter", show);
+        b.addEventListener("mouseleave", restore);
+        b.addEventListener("focus", show);
+        b.addEventListener("blur", restore);
+        b.addEventListener("click", () => {
+          if (scope.pinned.has(key)) scope.pinned.delete(key); else scope.pinned.add(key);
+          highlight(scope);
+        });
+        el.appendChild(b);
+      }
+      for (const chart of scope.charts) {
+        chart.canvas.onmousemove = (event) => {
+          const box = chart.canvas.getBoundingClientRect();
+          const key = curveAt(chart, event.clientX - box.left, event.clientY - box.top);
+          if (key !== scope.hover) { scope.hover = key; highlight(scope); }
+        };
+        chart.canvas.onmouseleave = () => { if (scope.hover != null) { scope.hover = null; highlight(scope); } };
+      }
+      highlight(scope);
+      const reset = el.parentElement.querySelector("button.reset");
+      if (reset) {
+        reset.hidden = true;
+        reset.onclick = () => { scope.charts.forEach((c) => c.resetZoom()); reset.hidden = true; };
+        scope.charts.forEach((c) => { c.$reset = { button: reset, charts: scope.charts }; });
+      }
+    });
+  }
+  function syncReset(chart) {
+    const r = chart.$reset;
+    if (r) r.button.hidden = !r.charts.some((c) => c.isZoomedOrPanned && c.isZoomedOrPanned());
+  }
+
+  function build() {
+    charts.forEach((c) => c.destroy());
+    charts = [];
+    byId = {};
+    Chart.defaults.font.family = css("--sans");
+    Chart.defaults.font.size = 12;
+    Chart.defaults.color = css("--muted");
+    const lines = (list) => list.map(line);
+    const start = (list) => list[0].points[0].y;
+
+    make("c-lad1", lines(DATA.ladder["1m"]), { x: popAxis(), y: linAxis(TEST(), 0.2, 5.2, 6.2) });
+    make("c-lad10", lines(DATA.ladder["10m"]), { x: popAxis(), y: linAxis(TEST(), 0.4, 3.6, 5.6) });
+
+    make("c-val", lines(DATA.curves), { x: stepAxis(610, 100), y: linAxis(VAL(), 0.5, 3.5, 7.5) });
+    make("c-gap", [guide(0, 0, 610)].concat(lines(DATA.gaps)),
+      { x: stepAxis(610, 100), y: linAxis(T("Loss above backprop (nats)", "高出 backprop 的 loss（nat）"), 0.25, -0.25, 1.5) });
+
+    make("c-cpt10", [guide(start(DATA.cpt10m), 0, 200)].concat(lines(DATA.cpt10m)),
+      { x: stepAxis(200, 50), y: linAxis(VAL(), 0.1, 3.7, 4.2) });
+    make("c-cpt100", [guide(start(DATA.cpt100m), 0, 200)].concat(lines(DATA.cpt100m)),
+      { x: stepAxis(200, 50), y: linAxis(VAL(), 0.04, 3.16, 3.32) });
+
+    for (const chart of Object.values(byId)) chart.canvas.ondblclick = () => { chart.resetZoom(); syncReset(chart); };
+    buildLegends();
+  }
+
+  function start() {
+    if (!window.Chart) return;
+    if (window.ChartZoom) Chart.register(window.ChartZoom);
+    build();
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    if (mq.addEventListener) mq.addEventListener("change", build);
+    new MutationObserver(build).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-lang"] });
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(start); else start();
+})();
+</script>
+</body>
+</html>

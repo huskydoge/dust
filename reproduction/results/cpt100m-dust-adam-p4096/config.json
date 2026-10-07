@@ -1,0 +1,90 @@
+{
+  "tokens": "cpt100",
+  "population": 4096,
+  "seed": 42,
+  "world": 4,
+  "steps": 200,
+  "training_tokens": 3276800,
+  "validation_sequences": 544,
+  "test_sequences": 544,
+  "model": {
+    "sequence_len": 2048,
+    "vocab_size": 4096,
+    "n_layer": 8,
+    "n_head": 8,
+    "n_kv_head": 8,
+    "n_embd": 512,
+    "window_pattern": "SSSL"
+  },
+  "recipe": {
+    "writers": [
+      320,
+      256,
+      160,
+      96,
+      64,
+      64,
+      32,
+      32
+    ],
+    "hidden": [
+      320,
+      256,
+      160,
+      96,
+      64,
+      64,
+      32,
+      32
+    ],
+    "hubs": [
+      352,
+      352,
+      224,
+      128,
+      128,
+      128,
+      128,
+      96
+    ],
+    "embedding": 2048,
+    "head": 12288,
+    "local": {
+      "q": 32,
+      "v": 320,
+      "gate": 96,
+      "k": 192,
+      "ve": 128
+    },
+    "nrep": 8,
+    "lr": 0.0015,
+    "momentum": 0.7,
+    "gamma": 0.98
+  },
+  "reward_centering": "per-token local draw-chunk mean; skipped at nrep=1; no rescaling",
+  "parameter_groups": [
+    {
+      "lr": 0.0015,
+      "momentum": 0.7,
+      "parameters": 27264000
+    },
+    {
+      "lr": 0.45,
+      "momentum": 0.7,
+      "parameters": 10485760
+    },
+    {
+      "lr": 0.15,
+      "momentum": 0.7,
+      "parameters": 16
+    }
+  ],
+  "source_sha256": "0a745dbe41c41f5b92f01ed5a51692086c168817ebc3975e1c64eb3e6c182569",
+  "model_sha256": "80515433dcf4850a317b0a57fadf6db28071b0790c9a24719d51d0fbe6c88377",
+  "torch_version": "2.10.0+cu128",
+  "data_sha256": {
+    "train": "45dffd10171fedf7ce648bb31ebec94091e6712a7ac085cddf39d9901ab618a5",
+    "val": "8d123afe426b7789a47e7959a17f912ee58436941fa02e32bf4662373cf1e52c",
+    "test": "cf7185682b3cae85d35024890f94fe6dd8192cad9122815a43fcccb6e61b9483"
+  }
+}
