@@ -231,12 +231,12 @@ footer { margin-top: 72px; padding-top: 16px; border-top: 1px solid var(--rule);
 </style>
 
 <script>
-// Language before first paint: ?lang=zh or ?lang=en, else the reader's last choice, else English.
+// Language before first paint: ?lang=zh or ?lang=en, else English.
 (function () {
   let lang = "en";
   try {
     const asked = new URLSearchParams(location.search).get("lang");
-    lang = asked === "zh" || asked === "en" ? asked : localStorage.getItem("dust-report-lang") || "en";
+    lang = asked === "zh" || asked === "en" ? asked : "en";
   } catch (e) { /* storage or URL unavailable: English */ }
   document.documentElement.dataset.lang = lang === "zh" ? "zh" : "en";
   document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
@@ -513,7 +513,7 @@ window.MathJax = { tex: { inlineMath: [["\\(", "\\)"]], displayMath: [["\\[", "\
     const button = event.target.closest("[data-set-lang]");
     if (!button || root.dataset.lang === button.dataset.setLang) return;
     root.dataset.lang = button.dataset.setLang;
-    try { localStorage.setItem("dust-report-lang", button.dataset.setLang); } catch (e) { /* not remembered */ }
+    
     syncLang();
   });
   syncLang();
