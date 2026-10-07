@@ -151,6 +151,13 @@ nav.toc-float a.active { color: var(--accent); border-left-color: var(--accent);
 .toc-bar nav a { display: block; padding: 6px 4px; color: var(--ink); text-decoration: none; }
 .toc-bar nav a.active { color: var(--accent); font-weight: 500; }
 nav.toc-float[hidden], .toc-bar[hidden], .toc-bar nav[hidden] { display: none; }
+nav.toc-inline { margin: 22px 0 0; padding-block: 14px 0; border-top: 1px solid var(--rule); font-family: var(--sans); font-size: 14.5px; line-height: 1.4; }
+nav.toc-inline ol { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 28px; }
+nav.toc-inline li { break-inside: avoid; }
+nav.toc-inline a { display: block; padding: 3px 0; text-decoration: none; }
+nav.toc-inline a:hover { text-decoration: underline; }
+@media (min-width: 1280px) { nav.toc-inline { display: none; } }
+@media (max-width: 560px) { nav.toc-inline ol { columns: 1; } }
 @media (max-width: 1279px) { nav.toc-float { display: none; } }
 @media (min-width: 1280px) {
   .toc-bar { display: none; }
@@ -241,9 +248,10 @@ footer { margin-top: 72px; padding-top: 16px; border-top: 1px solid var(--rule);
 <div class="toc-bar" id="toc-bar" hidden><div class="toc-bar-row"><button type="button" id="toc-bar-toggle" aria-expanded="false" aria-controls="toc-bar-nav"><span class="toc-bar-label"><span class="en">Contents ▾</span><span class="zh" lang="zh-CN">目录 ▾</span></span><span class="toc-bar-current" id="toc-bar-current"></span></button><div class="lang-switch" role="group" aria-label="Language"><button type="button" data-set-lang="en">EN</button><button type="button" data-set-lang="zh" lang="zh-CN">中文</button></div></div><nav id="toc-bar-nav" aria-label="Contents" hidden></nav></div>
 <main>
 <header class="col">
-  <div class="topline"><div class="eyebrow"><span class="en">Independent reproduction &middot; built October 6, 2026</span><span class="zh" lang="zh-CN">独立复现 &middot; 生成于 2026 年 10 月 6 日</span></div><div class="lang-switch" role="group" aria-label="Language"><button type="button" data-set-lang="en">English</button><button type="button" data-set-lang="zh" lang="zh-CN">中文</button></div></div>
+  <div class="topline"><div class="eyebrow"><span class="en">Independent reproduction &middot; built October 7, 2026</span><span class="zh" lang="zh-CN">独立复现 &middot; 生成于 2026 年 10 月 7 日</span></div><div class="lang-switch" role="group" aria-label="Language"><button type="button" data-set-lang="en">English</button><button type="button" data-set-lang="zh" lang="zh-CN">中文</button></div></div>
   <h1><span class="en">Dust Reproduction</span><span class="zh" lang="zh-CN">Dust 复现</span></h1>
   <p><span class="en">Dust (Dahal et al., 2026) trains a transformer language model without a backward pass. It adds noise to activations at every token and turns the loss changes that follow into a gradient estimate. The paper reports that this matches backpropagation (backprop) at pretraining. We ran the official release, added the AdamW baseline it lacks, and tested Dust on models that backprop had already trained.</span><span class="zh" lang="zh-CN">Dust（Dahal 等，2026）不做反向传播就能训练 transformer 语言模型：它在每个 token 的激活上加噪声，再把随之产生的 loss 变化转成梯度估计。论文称它在预训练上与反向传播（backpropagation，下称 backprop）相当。我们跑了官方 release，补上了它缺少的 AdamW baseline，并在 backprop 已经训练过的模型上测试了 Dust。</span></p>
+  <nav class="toc-inline" id="toc-inline" aria-label="Contents"></nav>
   <section class="tldr" aria-label="Summary">
     <div class="label"><span class="en">Summary</span><span class="zh" lang="zh-CN">要点</span></div>
     <ul>
@@ -464,6 +472,9 @@ window.MathJax = { tex: { inlineMath: [["\\(", "\\)"]], displayMath: [["\\[", "\
   float.appendChild(label);
   list(float);
   list(barNav);
+  // Narrow windows have no room for the floating list, so the same contents also sit under the header.
+  const inline = document.getElementById("toc-inline");
+  if (inline) { inline.appendChild(label.cloneNode(true)); list(inline); }
   float.hidden = false;
   document.addEventListener("click", (event) => {
     const a = event.target.closest(".toc-bar nav a");
