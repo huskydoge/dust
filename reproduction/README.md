@@ -16,7 +16,7 @@ built on the official release at commit `2fdb01b`. It is not affiliated with the
    better at 10M tokens, and no Dust run with SGD comes near it.
 3. **Dust under Adam does not keep up at 10M tokens.** At 1M tokens (61 steps) it is within 0.02 of backprop with AdamW
    at a population of 16,384. At 10M tokens it tracks backprop for about a hundred steps and then falls steadily behind,
-   ending 0.5 nat above it. Changing the learning rate or β1 recovers at most 0.02, and three seeds of one cell agree
+   ending 0.4 nat above its eight-seed mean. Changing the learning rate or β1 recovers at most 0.02, and three seeds of one cell agree
    to within 0.01.
 4. **Dust still improves a backprop-trained checkpoint, but less than backprop does.** Continued from an AdamW
    checkpoint it lowers the loss only at a learning rate below the one tuned for training from scratch, and reaches 73%
@@ -28,7 +28,7 @@ built on the official release at commit `2fdb01b`. It is not affiliated with the
 
 One model size (37.7M parameters), training from scratch on up to 10M tokens, populations up to 16,384, and one seed per
 Dust run except where [RESULTS.md](RESULTS.md) lists more. **We did not test whether a larger population closes the gap
-to AdamW.** At 10M tokens, going from 4,096 to 16,384 narrows it from 0.62 to 0.50 nat at four times the compute. The
+to AdamW.** At 10M tokens, going from 4,096 to 16,384 narrows it from 0.56 to 0.44 nat at four times the compute. The
 paper's Adam experiment at 1M tokens goes to a population of 65,536.
 
 Dust under Adam is not part of the official release. `dust_adam.py` rebuilds it from the paper's Appendices E and F. The
@@ -40,6 +40,7 @@ rescales the SGD one; that is our assumption. It matches the four published poin
 | File | Purpose |
 |---|---|
 | `baselines/backprop_adam.py` | Backprop with AdamW at the paper's Adam settings, plus options to save and continue a checkpoint |
+| `baselines/backprop_local.py` | Backprop with each linear layer's gradient multiplied by the inverse second moment of its input; with `--damping inf` it is the AdamW baseline, used here for five extra seeds |
 | `dust_adam.py` | Dust under Adam; `DUST_ADAM_LR` and `DUST_ADAM_BETA1` override the matrix learning rate and β1 |
 | `dust_cpt.py` | Continue a backprop checkpoint with Dust under Adam |
 | `prepare_cpt_data.py` | Continuation data and a 100M-token training set that no existing split contains |

@@ -54,16 +54,20 @@ def table(header, rows):
 
 def backprop(optimizer, tokens):
     suffix = "-lr0.002" if optimizer == "adamw" else ""
-    return [test(f"bp-{optimizer}-{tokens}{suffix}-s{seed}") for seed in (42, 43, 44)]
+    values = [test(f"bp-{optimizer}-{tokens}{suffix}-s{seed}") for seed in (42, 43, 44)]
+    if (optimizer, tokens) == ("adamw", "10m"):
+        # Five more seeds from baselines/backprop_local.py with its preconditioning off, which reproduces the baseline.
+        values += [test(f"localn-adamw-10m-lr0.002-dinf-s{seed}") for seed in range(45, 50)]
+    return values
 
 
 print("### Test loss against the paper\n")
 rows = []
 for tokens in ("1m", "10m"):
     adamw = mean(backprop("adamw", tokens))
-    for optimizer, label in (("sgd", "Backprop, SGD (3 seeds)"), ("adamw", "Backprop, AdamW (3 seeds)")):
+    for optimizer, label in (("sgd", "Backprop, SGD"), ("adamw", "Backprop, AdamW")):
         ours = mean(backprop(optimizer, tokens))
-        rows.append([f"{tokens.upper()} · {label}", show(ours), show(PAPER.get((f"bp-{optimizer}", tokens))), show(ours - adamw, 2)])
+        rows.append([f"{tokens.upper()} · {label} ({len(backprop(optimizer, tokens))} seeds)", show(ours), show(PAPER.get((f"bp-{optimizer}", tokens))), show(ours - adamw, 2)])
     for optimizer, label in (("sgd", "Dust, SGD"), ("adam", "Dust, Adam")):
         for i, population in enumerate(POPULATIONS):
             ours = test(f"dust-{optimizer}-{tokens}-p{population}-s42")
@@ -73,10 +77,10 @@ for tokens in ("1m", "10m"):
 table(["Run", "Ours", "Paper", "Above backprop AdamW"], rows)
 
 print("### Seeds at 10M tokens\n")
-rows = [["Backprop, AdamW"] + [show(v) for v in backprop("adamw", "10m")] + [show(mean(backprop("adamw", "10m")))]]
 seeds = [test(f"dust-adam-10m-p4096-s{seed}") for seed in (42, 43, 44)]
-rows.append(["Dust, Adam, population 4k"] + [show(v) for v in seeds] + [show(mean(seeds))])
-table(["Method", "Seed 42", "Seed 43", "Seed 44", "Mean"], rows)
+rows = [[name, str(len(values)), show(mean(values)), show(min(values)), show(max(values))]
+        for name, values in (("Backprop, AdamW", backprop("adamw", "10m")), ("Dust, Adam, population 4k", seeds))]
+table(["Method", "Seeds", "Mean", "Lowest", "Highest"], rows)
 
 print("### Dust under Adam at 10M tokens, tuning at population 1k\n")
 SWEEP = [("dust-adam-10m-p1024-s42", "Appendix settings (learning rate 0.0015, β1 0.7)"),
